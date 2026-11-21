@@ -198,7 +198,8 @@ def equivalent_edit(before, after, target):
     edit = {"id": target["id"], "rotation": angle, "placement": placement}
     color_path = f"{{{P}}}spPr/{{{A}}}solidFill/{{{A}}}srgbClr"
     old_color, new_color = before.find(color_path), after.find(color_path)
-    if old_color is not None and new_color is not None and not len(old_color) and not len(new_color):
+    if old_color is not None and new_color is not None and all(
+            child.tag == f"{{{A}}}alpha" for color in (old_color, new_color) for child in color):
         previous, proposed = old_color.get("val", ""), new_color.get("val", "")
         if previous != proposed and all(re.fullmatch("[0-9a-fA-F]{6}", value) for value in (previous, proposed)):
             if target.get("solidFillRGB") == list(bytes.fromhex(previous)):
@@ -341,7 +342,7 @@ def sync_live_text(slide, shape, current_text):
     text_node.appendChild(slide.createTextNode(current_text))
 
 
-def sync_live_fill(shape, rgb):
+def sync_live_fill(shape, rgb, transparency=None):
     if not isinstance(rgb, list) or len(rgb) != 3 or not all(type(v) is int and 0 <= v <= 255 for v in rgb):
         return
     # Only a direct shape fill is represented by the snapshot's solidFillRGB.
@@ -352,9 +353,19 @@ def sync_live_fill(shape, rgb):
         if len(children) != 1:
             return
         node = children[0]
-    if any(child.nodeType == Node.ELEMENT_NODE for child in node.childNodes):
+    effects = [child for child in node.childNodes if child.nodeType == Node.ELEMENT_NODE]
+    if len(effects) > 1 or any(child.namespaceURI != A or child.localName != "alpha" for child in effects):
         return
     node.setAttribute("val", bytes(rgb).hex().upper())
+    if type(transparency) in (float, int) and 0 <= transparency <= 1:
+        opacity = round((1 - transparency) * 100000)
+        if effects:
+            effects[0].setAttribute("val", str(opacity))
+        elif opacity != 100000:
+            tag = f"{node.prefix}:alpha" if node.prefix else "alpha"
+            alpha = node.ownerDocument.createElementNS(A, tag)
+            alpha.setAttribute("val", str(opacity))
+            node.appendChild(alpha)
 
 
 def copy_live_geometry(source, selector, current, baseline):
@@ -370,7 +381,7 @@ def copy_live_geometry(source, selector, current, baseline):
             if shape is None:
                 continue
             sync_live_text(slide, shape, obj.get("text"))
-            sync_live_fill(shape, obj.get("solidFillRGB"))
+            sync_live_fill(shape, obj.get("solidFillRGB"), obj.get("fillTransparency"))
             transforms = shape.getElementsByTagNameNS(A, "xfrm")
             if len(transforms) != 1:
                 continue
