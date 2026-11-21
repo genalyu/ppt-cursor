@@ -73,7 +73,18 @@ extension Prediction {
             throw PredictionError.invalidResponse
         }
         try suggestion.validate(for: slide, images: images)
-        return suggestion
+        let artwork = suggestion.artwork.map { art -> Artwork in
+            guard let id = art.referenceID, let size = images.first(where: { $0.id == id })?.pixelSize else { return art }
+            let box = art.placement
+            let scale = min(box.width / size.width, box.height / size.height)
+            let width = size.width * scale, height = size.height * scale
+            let fit = Placement(x: box.x + (box.width - width) / 2, y: box.y + (box.height - height) / 2,
+                                width: width, height: height)
+            return Artwork(placement: fit, referenceID: id, svg: art.svg)
+        }
+        let fitted = Prediction(summary: suggestion.summary, edits: suggestion.edits, artwork: artwork)
+        try fitted.validate(for: slide, images: images)
+        return fitted
     }
 }
 
@@ -85,7 +96,11 @@ enum PredictionInput {
     }
 
     static func context(_ context: EditContext, images: [ReferenceImage], hasPage: Bool) throws -> String {
-        let catalog = images.map { ["id": $0.id, "name": $0.name] }
+        let catalog = images.map { image in
+            var entry = ["id": image.id, "name": image.name]
+            if let size = image.pixelSize { entry["pixels"] = "\(Int(size.width))x\(Int(size.height))" }
+            return entry
+        }
         let prefix = hasPage ? "The first attached image is the current slide, not an insertable reference. Remaining attachments follow catalog order.\n" : ""
         return try prefix + String(decoding: JSONEncoder().encode(catalog), as: UTF8.self) + "\n" +
             String(decoding: JSONEncoder().encode(context), as: UTF8.self)
