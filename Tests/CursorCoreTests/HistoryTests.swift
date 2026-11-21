@@ -47,6 +47,18 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(String(decoding: data, as: UTF8.self).components(separatedBy: "Background").count, 2)
     }
 
+    func testDocumentIdentityStaysLocal() throws {
+        let path = "/Users/example/Private/Quarterly.pptx"
+        let current = snapshot(12, document: path)
+        let context = EditContext(previous: [snapshot(0, document: path)], current: current)
+        let data = try JSONEncoder().encode(context)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let page = json?["current"] as? [String: Any]
+        XCTAssertNotNil(page?["objects"])
+        XCTAssertNil(page?["document"])
+        XCTAssertEqual(context.current.document, path)
+    }
+
     func testDocumentAndSlideChangesReseedContext() {
         var history = EditHistory()
         _ = history.observe(snapshot(0))

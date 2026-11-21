@@ -33,7 +33,8 @@ final class MockAPI: URLProtocol {
         precondition(body["model"] as? String == "test-model")
         let input = body["input"] as! [[String: Any]]
         let content = input[0]["content"] as! [[String: String]]
-        precondition(content.count == 3 && content[0]["text"]!.contains("slideID"))
+        let prompt = content[0]["text"]!
+        precondition(content.count == 3 && prompt.contains("transitions") && !prompt.contains("fixture"))
         precondition(content[1]["image_url"] == "data:image/png;base64,AQ==")
         precondition(content[2]["image_url"] == "data:image/png;base64,Ag==")
         let suggestion = #"{"summary":"Align","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0,"text":null}],"artwork":[]}"#

@@ -10,6 +10,7 @@ func XCTAssertNil<T>(_ value: T?) { precondition(value == nil) }
 func XCTAssertNotNil<T>(_ value: T?) { precondition(value != nil) }
 func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T) { precondition(a == b) }
 let tests = HistoryTests()
+try tests.testDocumentIdentityStaysLocal()
 try tests.testModelSeesOrderedChangesAndUnchangedObjectsOnlyOnce()
 tests.testRealChangesOnlyAndBoundedHistory()
 tests.testDocumentAndSlideChangesReseedContext()

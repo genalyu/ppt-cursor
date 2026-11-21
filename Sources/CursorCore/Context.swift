@@ -47,9 +47,15 @@ public struct EditContext: Encodable, Sendable {
 
     private enum CodingKeys: String, CodingKey { case current, transitions }
 
+    private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs }
+
     public func encode(to encoder: Encoder) throws {
         var output = encoder.container(keyedBy: CodingKeys.self)
-        try output.encode(current, forKey: .current)
+        var page = output.nestedContainer(keyedBy: PageKeys.self, forKey: .current)
+        try page.encode(current.width, forKey: .width)
+        try page.encode(current.height, forKey: .height)
+        try page.encode(current.objects, forKey: .objects)
+        try page.encodeIfPresent(current.selectedIDs, forKey: .selectedIDs)
         let states = previous + [current]
         let transitions = zip(states, states.dropFirst()).map { Transition(from: $0, to: $1) }
         try output.encode(transitions, forKey: .transitions)
