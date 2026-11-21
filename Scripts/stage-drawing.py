@@ -128,6 +128,8 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
     """Use the live bridge only when its properties completely explain the rendered edit."""
     after_xml = f'<root xmlns:p="{P}" xmlns:a="{A}">{drawing}</root>'
     live_objects = {native_shape_id(tree, obj["id"]): obj for obj in current["objects"]}
+    best_edit = None
+    best_score = None
     for source in tree.childNodes:
         if source.namespaceURI != P or source.localName != "sp":
             continue
@@ -150,11 +152,20 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
             if drawing_signature(before.find(f"{{{P}}}nvSpPr")) != drawing_signature(after.find(f"{{{P}}}nvSpPr")):
                 continue
         edit = equivalent_edit(before, after, target)
-        if edit is not None:
-            if duplicate:
-                edit["duplicate"] = True
+        if edit is None:
+            continue
+        if not duplicate:
             return {"summary": summary, "edits": [edit], "artwork": []}
-    return None
+        edit["duplicate"] = True
+        # Prefer a source that already has the intended text and appearance. Selection
+        # breaks ties when several objects would produce the same native result.
+        score = (sum(key in edit for key in ("text", "solidFillRGB", "fontSize")),
+                 target["id"] not in (current.get("selectedIDs") or []))
+        if best_score is None or score < best_score:
+            best_score, best_edit = score, edit
+        if score == (0, False):
+            break
+    return {"summary": summary, "edits": [best_edit], "artwork": []} if best_edit else None
 
 
 def drawing_signature(node):
