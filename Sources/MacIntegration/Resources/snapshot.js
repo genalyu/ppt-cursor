@@ -43,6 +43,7 @@ function run(args) {
     const source = $.NSString.stringWithContentsOfFileEncodingError(args[1], $.NSUTF8StringEncoding, null);
     const request = JSON.parse(ObjC.unwrap(source));
     const baseline = JSON.parse(snapshot());
+    for (const object of request.baseline.objects) { if (object.text === undefined) object.text = null; }
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
     const proposal = request.proposal;
     if (proposal.artwork.length) throw Error("Artwork insertion unavailable in this bridge");
