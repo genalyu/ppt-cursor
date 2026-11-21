@@ -75,10 +75,14 @@ public final class PreviewCanvas: NSView {
         let transform = NSAffineTransform()
         transform.translateX(by: origin.x, yBy: origin.y)
         transform.scale(by: scale)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
         transform.concat()
+        let pageBounds = NSRect(x: 0, y: 0, width: slide.width, height: slide.height)
+        NSBezierPath(rect: pageBounds).addClip()
         if diagnosticBackground {
             NSColor.white.setFill()
-            NSRect(x: 0, y: 0, width: slide.width, height: slide.height).fill()
+            pageBounds.fill()
             for object in slide.objects {
                 let rect = NSRect(x: object.x, y: object.y, width: object.width, height: object.height)
                 NSColor(white: 0.94, alpha: 1).setFill()
