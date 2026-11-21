@@ -92,8 +92,10 @@ def stage(source, part, fragment, output, replace_id=None):
         if any(attr.namespaceURI not in (None, XMLNS) for attr in node.attributes.values()):
             raise ValueError("Shape must be self-contained")
     props = shape.getElementsByTagNameNS(P, "cNvPr")
-    if len(props) != 1:
-        raise ValueError("Expected one native shape identity")
+    if len(props) != 1 or props[0].parentNode.localName != "nvSpPr" or props[0].parentNode.parentNode != shape:
+        raise ValueError("Expected one native shape identity inside p:nvSpPr")
+    if sum(child.namespaceURI == P and child.localName == "spPr" for child in shape.childNodes) != 1:
+        raise ValueError("Expected one native shape properties element")
     with tempfile.TemporaryDirectory(dir=output.parent) as directory:
         candidate = Path(directory) / "candidate.pptx"
         with ZipFile(source) as original, ZipFile(candidate, "w") as staged:
@@ -523,7 +525,13 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
             raise ValueError(f"Codex 预测失败（退出码 {error.returncode}）。请检查登录状态与网络连接。") from None
         except subprocess.TimeoutExpired:
             raise ValueError("Codex 预测超时。") from None
+        if not result.is_file():
+            raise ValueError("模型没有返回建议。")
         proposal = json.loads(result.read_text())
+        if (not isinstance(proposal, dict) or not isinstance(proposal.get("drawing"), str)
+                or not isinstance(proposal.get("summary"), str) or "replaceID" not in proposal
+                or (proposal["replaceID"] is not None and type(proposal["replaceID"]) is not int)):
+            raise ValueError("模型建议格式无效。")
         if not proposal["drawing"].strip():
             print("No suggestion.")
             return
