@@ -211,6 +211,15 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
                 if identity_node is not None:
                     for attr in ("id", "name"):
                         identity_node.attrib.pop(attr, None)
+                    extensions = identity_node.find(f"{{{A}}}extLst")
+                    if extensions is not None:
+                        for entry in list(extensions):
+                            if (entry.tag == f"{{{A}}}ext" and len(entry) == 1
+                                    and entry[0].tag == "{http://schemas.microsoft.com/office/drawing/2014/main}creationId"
+                                    and len(entry[0]) == 0):
+                                extensions.remove(entry)
+                        if not len(extensions):
+                            identity_node.remove(extensions)
             if drawing_signature(before.find(f"{{{P}}}nvSpPr")) != drawing_signature(after.find(f"{{{P}}}nvSpPr")):
                 continue
         edit = equivalent_edit(before, after, target)
