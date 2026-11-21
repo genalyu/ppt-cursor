@@ -85,8 +85,9 @@ public final class PreviewCanvas: NSView {
             pageBounds.fill()
             for object in slide.objects {
                 let rect = NSRect(x: object.x, y: object.y, width: object.width, height: object.height)
-                NSColor(white: 0.94, alpha: 1).setFill()
-                rect.fill()
+                let color = fillColor(object.solidFillRGB, transparency: object.fillTransparency)
+                (color ?? NSColor(white: 0.94, alpha: 1)).setFill()
+                outlinePath(for: object, in: rect).fill()
                 drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize)
             }
         }
@@ -104,7 +105,7 @@ public final class PreviewCanvas: NSView {
             rotation.translateX(by: -rect.midX, yBy: -rect.midY)
             rotation.concat()
             let original = slide.objects.first { $0.id == edit.id }
-            let outline = original?.autoShapeType == "autoshape oval" ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+            let outline = outlinePath(for: original, in: rect)
             if edit.text == nil, edit.fontSize == nil, let picture = picturePreviews[edit.id] {
                 picture.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.7, respectFlipped: true, hints: nil)
             } else {
@@ -115,12 +116,8 @@ public final class PreviewCanvas: NSView {
                     NSColor.white.setFill()
                     outline.fill()
                 }
-                if let rgb = edit.solidFillRGB, rgb.count == 3 {
-                    NSColor(srgbRed: CGFloat(rgb[0]) / 255, green: CGFloat(rgb[1]) / 255,
-                            blue: CGFloat(rgb[2]) / 255, alpha: 1 - (original?.fillTransparency ?? 0)).setFill()
-                } else {
-                    NSColor.systemTeal.withAlphaComponent(0.19).setFill()
-                }
+                let color = fillColor(edit.solidFillRGB ?? original?.solidFillRGB, transparency: original?.fillTransparency)
+                (color ?? NSColor.systemTeal.withAlphaComponent(0.19)).setFill()
                 outline.fill()
                 drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
             }
@@ -136,6 +133,16 @@ public final class PreviewCanvas: NSView {
                                                       from: .zero, operation: .sourceOver, fraction: 0.85,
                                                       respectFlipped: true, hints: nil)
         }
+    }
+
+    private func outlinePath(for object: SlideObject?, in rect: NSRect) -> NSBezierPath {
+        object?.autoShapeType == "autoshape oval" ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+    }
+
+    private func fillColor(_ rgb: [Int]?, transparency: Double?) -> NSColor? {
+        guard let rgb, rgb.count == 3 else { return nil }
+        return NSColor(srgbRed: CGFloat(rgb[0]) / 255, green: CGFloat(rgb[1]) / 255,
+                       blue: CGFloat(rgb[2]) / 255, alpha: 1 - (transparency ?? 0))
     }
 
     private func drawLabel(_ text: String, in rect: NSRect, fontSize: Double?) {
