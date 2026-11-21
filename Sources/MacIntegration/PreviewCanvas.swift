@@ -85,10 +85,13 @@ public final class PreviewCanvas: NSView {
             pageBounds.fill()
             for object in slide.objects {
                 let rect = NSRect(x: object.x, y: object.y, width: object.width, height: object.height)
+                NSGraphicsContext.saveGraphicsState()
+                rotate(object.rotation, around: rect)
                 let color = fillColor(object.solidFillRGB, transparency: object.fillTransparency)
                 (color ?? NSColor(white: 0.94, alpha: 1)).setFill()
                 outlinePath(for: object, in: rect).fill()
                 drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize)
+                NSGraphicsContext.restoreGraphicsState()
             }
         }
         // Existing shapes retain their slide order; PowerPoint appends copies above them.
@@ -99,11 +102,7 @@ public final class PreviewCanvas: NSView {
             let p = edit.placement
             let rect = NSRect(x: p.x, y: p.y, width: p.width, height: p.height)
             NSGraphicsContext.saveGraphicsState()
-            let rotation = NSAffineTransform()
-            rotation.translateX(by: rect.midX, yBy: rect.midY)
-            rotation.rotate(byDegrees: edit.rotation)
-            rotation.translateX(by: -rect.midX, yBy: -rect.midY)
-            rotation.concat()
+            rotate(edit.rotation, around: rect)
             let original = slide.objects.first { $0.id == edit.id }
             let outline = outlinePath(for: original, in: rect)
             if edit.text == nil, edit.fontSize == nil, let picture = picturePreviews[edit.id] {
@@ -133,6 +132,14 @@ public final class PreviewCanvas: NSView {
                                                       from: .zero, operation: .sourceOver, fraction: 0.85,
                                                       respectFlipped: true, hints: nil)
         }
+    }
+
+    private func rotate(_ angle: Double, around rect: NSRect) {
+        let transform = NSAffineTransform()
+        transform.translateX(by: rect.midX, yBy: rect.midY)
+        transform.rotate(byDegrees: angle)
+        transform.translateX(by: -rect.midX, yBy: -rect.midY)
+        transform.concat()
     }
 
     private func outlinePath(for object: SlideObject?, in rect: NSRect) -> NSBezierPath {
