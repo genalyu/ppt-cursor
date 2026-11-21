@@ -17,15 +17,20 @@ cat > "$scratch/shape.xml" <<'DRAWING'
 DRAWING
 python3 "$root/Scripts/stage-drawing.py" "$root/Examples/Tab-Demo.pptx" ppt/slides/slide1.xml \
     "$scratch/shape.xml" "$scratch/$name.pptx"
+# Deliver the file URL through Launch Services, as Finder does when opening a PPTX.
+open -g -b com.microsoft.Powerpoint "$scratch/$name.pptx"
 osascript - "$scratch" "$name" <<'APPLESCRIPT'
 on run argv
     set folderPath to item 1 of argv
     set deckName to item 2 of argv
-    set inputFile to POSIX file (folderPath & "/" & deckName & ".pptx")
     set firstPDF to POSIX file (folderPath & "/before.pdf")
     set secondPDF to POSIX file (folderPath & "/after.pdf")
     tell application "Microsoft PowerPoint"
-        open inputFile
+        set deadline to (current date) + 30
+        repeat until exists presentation (deckName & ".pptx")
+            if (current date) > deadline then error "PowerPoint did not open the test deck. Check for a file access dialog."
+            delay 0.25
+        end repeat
         set deck to presentation (deckName & ".pptx")
         try
             save deck in firstPDF as save as PDF
