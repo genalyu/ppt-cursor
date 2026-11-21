@@ -168,12 +168,17 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func chooseModel() {
         guard let choice = ModelSettings.choose(current: api) else { return }
-        let failed = failedContext
+        let interrupted = waiting ?? inFlightContext ?? failedContext
         invalidate()
-        failedContext = failed
+        waiting = interrupted
         switch choice {
         case .cli: api = nil; message("已选择 Codex CLI")
         case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
+        }
+        if monitoring, interrupted != nil {
+            message("模型连接已更新，正在重新核对幻灯片…")
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
+            poll()
         }
     }
 

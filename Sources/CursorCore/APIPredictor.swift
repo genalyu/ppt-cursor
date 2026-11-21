@@ -3,6 +3,10 @@ import Foundation
 public struct APISettings: Sendable {
     public let model: String
     let key: String
+    public func selecting(model: String) -> APISettings {
+        APISettings(model: model, key: key)
+    }
+
     public init(model: String, key: String) {
         self.model = model
         self.key = key

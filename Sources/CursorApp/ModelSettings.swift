@@ -12,7 +12,7 @@ enum ModelSettings {
         model.placeholderString = "模型名称"
         model.setAccessibilityLabel("模型名称")
         let key = NSSecureTextField(string: "")
-        key.placeholderString = "OpenAI API 密钥"
+        key.placeholderString = current == nil ? "OpenAI API 密钥" : "留空以沿用本次连接的密钥"
         key.setAccessibilityLabel("OpenAI API 密钥")
         let stack = NSStackView(views: [model, key])
         stack.orientation = .vertical
@@ -26,6 +26,7 @@ enum ModelSettings {
         case .alertFirstButtonReturn:
             let name = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             let secret = key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !name.isEmpty, secret.isEmpty, let current { return .api(current.selecting(model: name)) }
             guard !name.isEmpty, !secret.isEmpty else {
                 let error = NSAlert()
                 error.messageText = "请填写模型名称和 API 密钥"

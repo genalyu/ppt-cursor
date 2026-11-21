@@ -61,7 +61,7 @@ let context = try history.observe(state(2))!
 let config = URLSessionConfiguration.ephemeral
 config.protocolClasses = [MockAPI.self]
 let session = URLSession(configuration: config)
-let model = APIPredictor(settings: APISettings(model: "test-model", key: "test-only"), session: session)
+let model = APIPredictor(settings: APISettings(model: "previous-model", key: "test-only").selecting(model: "test-model"), session: session)
 let image = ReferenceImage(name: "card", png: Data([3]), thumbnail: Data([2]))
 let result = try model.predict(context, images: [image], currentPage: Data([1]))
 precondition(result.edits.first?.id == "a")
