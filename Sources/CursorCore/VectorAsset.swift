@@ -10,13 +10,17 @@ enum VectorAsset {
         let parser = XMLParser(data: Data(svg.utf8))
         parser.shouldResolveExternalEntities = false
         parser.delegate = checker
-        return parser.parse() && checker.valid && checker.count > 0
+        return parser.parse() && checker.valid && checker.hasArtwork
     }
 }
 
 private final class VectorChecker: NSObject, XMLParserDelegate {
     var valid = true
-    var count = 0
+    private(set) var hasArtwork = false
+    private var count = 0
+    private var definitionDepth = 0
+    private let definitionContainers: Set<String> = ["defs", "clipPath", "linearGradient", "radialGradient", "title", "desc"]
+    private let drawingElements: Set<String> = ["path", "rect", "circle", "ellipse", "polygon", "polyline", "line", "text"]
     private let elements: Set<String> = [
         "svg", "g", "defs", "path", "rect", "circle", "ellipse", "polygon", "polyline", "line",
         "text", "tspan", "title", "desc", "linearGradient", "radialGradient", "stop", "clipPath"
@@ -46,5 +50,12 @@ private final class VectorChecker: NSObject, XMLParserDelegate {
             parser.abortParsing()
             return
         }
+        if definitionContainers.contains(name) { definitionDepth += 1 }
+        if definitionDepth == 0 && drawingElements.contains(name) { hasArtwork = true }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?,
+                qualifiedName: String?) {
+        if definitionContainers.contains(name) { definitionDepth -= 1 }
     }
 }
