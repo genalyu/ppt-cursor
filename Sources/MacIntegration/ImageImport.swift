@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import CursorCore
 
 public enum ImageImport {
-    public static func read(_ url: URL) throws -> ReferenceImage {
+    public static func read(_ url: URL, id: String = UUID().uuidString) throws -> ReferenceImage {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { throw BridgeFailure("无法读取图片 " + url.lastPathComponent) }
         func png(maxDimension: Int) throws -> Data {
             let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -19,6 +19,6 @@ public enum ImageImport {
             guard CGImageDestinationFinalize(dest) else { throw BridgeFailure("无法准备图片 " + url.lastPathComponent) }
             return bytes as Data
         }
-        return try ReferenceImage(name: url.lastPathComponent, png: png(maxDimension: 3072), thumbnail: png(maxDimension: 384))
+        return try ReferenceImage(id: id, name: url.lastPathComponent, png: png(maxDimension: 3072), thumbnail: png(maxDimension: 384))
     }
 }

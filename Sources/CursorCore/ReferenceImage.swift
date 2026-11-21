@@ -8,8 +8,8 @@ public struct ReferenceImage: Sendable {
     public let thumbnail: Data
     public let pixelSize: CGSize?
 
-    public init(name: String, png: Data, thumbnail: Data) {
-        id = UUID().uuidString
+    public init(id: String = UUID().uuidString, name: String, png: Data, thumbnail: Data) {
+        self.id = id
         self.name = name
         if let source = CGImageSourceCreateWithData(png as CFData, nil),
            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
