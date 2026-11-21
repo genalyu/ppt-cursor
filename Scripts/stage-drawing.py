@@ -386,13 +386,25 @@ def slide_page(source, slide_id):
     return pages[0]
 
 
+def run_renderer(command, timeout):
+    try:
+        result = subprocess.run(command, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ValueError("页面渲染超时") from None
+    if result.returncode:
+        detail = (result.stderr or result.stdout).decode("utf-8", errors="replace").strip().splitlines()
+        raise ValueError("无法渲染当前页" + ("：" + detail[-1][:240] if detail else ""))
+
+
 def export_page(scratch, page, decks):
     office = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
     settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"},
                 "PageRange": {"type": "string", "value": str(page)}}
-    subprocess.run([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
+    run_renderer([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
                     "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
-                    "--outdir", str(scratch), *map(str, decks)], check=True, timeout=90)
+                    "--outdir", str(scratch), *map(str, decks)], timeout=90)
+    if any(not (scratch / (deck.stem + ".pdf")).is_file() for deck in decks):
+        raise ValueError("LibreOffice 未生成页面预览，请检查文稿能否正常打开")
 
 
 def page_png(pdf, output):
@@ -401,7 +413,7 @@ def page_png(pdf, output):
     else:
         command = ["/usr/bin/sips", "-s", "format", "png", "-Z", "1600", pdf,
                    "--out", str(output)]
-    subprocess.run(command, check=True, timeout=30)
+    run_renderer(command, timeout=30)
 
 
 def stage_reference(source, selector, output, reference, box, slide):
@@ -770,6 +782,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
         if check_current:
             check_current()
         context = json.dumps({**model_history(states), "shapes": shapes, "references": catalog, "recentlyDismissed": dismissed})
+        print("正在根据当前页和最近编辑预测下一步…", flush=True)
         if api:
             proposal = api_proposal(api, prompt, context, flags[1::2], schema)
         else:
@@ -791,6 +804,8 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
                 or not isinstance(proposal.get("summary"), str) or "replaceID" not in proposal
                 or (proposal["replaceID"] is not None and type(proposal["replaceID"]) is not int)):
             raise ValueError("模型建议格式无效。")
+        if proposal.get("referenceID") is not None or proposal["drawing"].strip():
+            print("正在生成画布预览…", flush=True)
         if proposal.get("referenceID") is not None:
             matches = [ref for entry, ref in zip(catalog, references) if entry["id"] == proposal["referenceID"]]
             if len(matches) != 1 or proposal["drawing"].strip() or proposal["replaceID"] is not None:
@@ -801,7 +816,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
                 print(proposal["summary"])
             return
         if not proposal["drawing"].strip():
-            print("No suggestion.")
+            print("等待更多编辑以判断下一步。")
             return
         if proposal["replaceID"] is not None and not any(shape["replaceID"] == proposal["replaceID"] for shape in shapes):
             raise ValueError("模型指定的替换对象不在当前页的可编辑图形中。")
@@ -812,7 +827,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
         acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if not render_pair(baseline, selector, fragment, output, proposal["replaceID"],
                            require_visible=True, baseline_image=page_image, outline=geometry_outline(acceptance, states[-1])):
-            print("No visible change.")
+            print("建议没有可见变化，等待下一次编辑。")
             return
         (output / "summary.txt").write_text(proposal["summary"])
         if acceptance:
