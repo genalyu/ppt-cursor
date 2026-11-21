@@ -126,14 +126,45 @@ def stage(source, part, fragment, output, replace_id=None):
 
 def native_acceptance(tree, replace_id, drawing, current, summary):
     """Use the live bridge only when its properties completely explain the rendered edit."""
-    if replace_id is None:
+    after_xml = f'<root xmlns:p="{P}" xmlns:a="{A}">{drawing}</root>'
+    live_objects = {native_shape_id(tree, obj["id"]): obj for obj in current["objects"]}
+    for source in tree.childNodes:
+        if source.namespaceURI != P or source.localName != "sp":
+            continue
+        identity = int(source.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id"))
+        if replace_id is not None and identity != replace_id:
+            continue
+        target = live_objects.get(identity)
+        duplicate = replace_id is None
+        if target is None or (duplicate and target.get("kind") == "shape type place holder"):
+            continue
+        before = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{source.toxml()}</root>')[0]
+        after = ElementTree.fromstring(after_xml)[0]
+        if duplicate:
+            # PowerPoint assigns its own identity and name to a pasted native copy.
+            for shape in (before, after):
+                identity_node = shape.find(f"{{{P}}}nvSpPr/{{{P}}}cNvPr")
+                if identity_node is not None:
+                    for attr in ("id", "name"):
+                        identity_node.attrib.pop(attr, None)
+            if drawing_signature(before.find(f"{{{P}}}nvSpPr")) != drawing_signature(after.find(f"{{{P}}}nvSpPr")):
+                continue
+        edit = equivalent_edit(before, after, target)
+        if edit is not None:
+            if duplicate:
+                edit["duplicate"] = True
+            return {"summary": summary, "edits": [edit], "artwork": []}
+    return None
+
+
+def drawing_signature(node):
+    if node is None:
         return None
-    source = next((s for s in tree.childNodes if s.namespaceURI == P and s.localName == "sp"
-                   and int(s.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id")) == replace_id), None)
-    if source is None:
-        return None
-    before = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{source.toxml()}</root>')[0]
-    after = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{drawing}</root>')[0]
+    return (node.tag, node.attrib, node.text if node.tag == f"{{{A}}}t" else (node.text or "").strip(),
+            [drawing_signature(child) for child in node])
+
+
+def equivalent_edit(before, after, target):
     path = f"{{{P}}}spPr/{{{A}}}xfrm"
     original, proposed = before.find(path), after.find(path)
     if original is None or proposed is None:
@@ -153,13 +184,6 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
     # Staging explicitly retains the original nonvisual metadata.
     for shape in (before, after):
         shape.remove(shape.find(f"{{{P}}}nvSpPr"))
-    def signature(node):
-        return (node.tag, node.attrib, node.text if node.tag == f"{{{A}}}t" else (node.text or "").strip(),
-                [signature(child) for child in node])
-    matches = [obj for obj in current["objects"] if native_shape_id(tree, obj["id"]) == replace_id]
-    if len(matches) != 1:
-        return None
-    target = matches[0]
     edit = {"id": target["id"], "rotation": angle, "placement": placement}
     color_path = f"{{{P}}}spPr/{{{A}}}solidFill/{{{A}}}srgbClr"
     old_color, new_color = before.find(color_path), after.find(color_path)
@@ -183,9 +207,9 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
                 if all(child.tag in (f"{{{A}}}r", f"{{{A}}}pPr", f"{{{A}}}endParaRPr") for child in old_p):
                     edit["text"] = new_text
                     new_runs[0].text = old_runs[0].text
-    if signature(before) != signature(after):
+    if drawing_signature(before) != drawing_signature(after):
         return None
-    return {"summary": summary, "edits": [edit], "artwork": []}
+    return edit
 
 
 def write_overlay(before_file, after_file, output):
