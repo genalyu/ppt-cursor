@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import posixpath
@@ -322,14 +323,23 @@ def geometry_outline(acceptance, state):
     if not acceptance:
         return None
     edit = acceptance["edits"][0]
-    if edit.get("duplicate") or edit.get("rotation") or not edit.get("placement"):
+    if edit.get("duplicate") or not edit.get("placement"):
         return None
     obj = next(obj for obj in state["objects"] if obj["id"] == edit["id"])
     rect = edit["placement"]
-    if not any(abs(rect[key] - obj[key]) > 0.01 for key in ("x", "y", "width", "height")):
+    rotation = edit.get("rotation", obj.get("rotation", 0))
+    angle_change = math.remainder(rotation - obj.get("rotation", 0), 360)
+    if abs(angle_change) <= 0.01 and all(abs(rect[key] - obj[key]) <= 0.01 for key in rect):
         return None
-    return (rect["x"] / state["width"], rect["y"] / state["height"],
-            (rect["x"] + rect["width"]) / state["width"], (rect["y"] + rect["height"]) / state["height"])
+    half_w, half_h = rect["width"] / 2, rect["height"] / 2
+    if half_w <= 0 or half_h <= 0:
+        return None
+    cx, cy = rect["x"] + half_w, rect["y"] + half_h
+    angle = math.radians(rotation)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    return [((cx + x * cosine - y * sine) / state["width"],
+             (cy + x * sine + y * cosine) / state["height"])
+            for x, y in ((-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h))]
 
 
 def slide_page(source, slide_id):
@@ -386,11 +396,11 @@ def render_pair(source, slide_id, fragment, destination, replace_id, require_vis
             export_page(scratch, page, [candidate])
         page_png(str(scratch / "after.pdf"), result / "after.png")
         visible = write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
-        if not visible and outline and outline[2] > outline[0] and outline[3] > outline[1]:
+        if not visible and outline:
             from PIL import Image, ImageDraw
             with Image.open(result / "overlay.png") as image:
-                bounds = [round(value * image.size[index % 2]) for index, value in enumerate(outline)]
-                ImageDraw.Draw(image).rectangle(bounds, outline=(0, 142, 176, 255), width=3)
+                corners = [(round(x * image.width), round(y * image.height)) for x, y in outline]
+                ImageDraw.Draw(image).polygon(corners, outline=(0, 142, 176, 255), width=3)
                 visible = image.getchannel("A").getbbox() is not None
                 image.save(result / "overlay.png")
         if require_visible and not visible:
