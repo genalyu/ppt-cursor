@@ -28,6 +28,18 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(next?.previous, [selected])
     }
 
+    func testExplicitPredictionCanUseAStationarySlide() {
+        var history = EditHistory()
+        XCTAssertNil(history.currentContext)
+        _ = history.observe(snapshot(0))
+        XCTAssertEqual(history.currentContext?.previous, [])
+        XCTAssertEqual(history.currentContext?.current, snapshot(0))
+        _ = history.observe(snapshot(4))
+        history.recordDismissal("Move left", on: snapshot(4))
+        XCTAssertEqual(history.currentContext?.previous, [snapshot(0)])
+        XCTAssertEqual(history.currentContext?.recentlyDismissed, ["Move left"])
+    }
+
     func testModelSeesTextRangesAcrossAnEdit() throws {
         var history = EditHistory()
         var before = snapshot(0)

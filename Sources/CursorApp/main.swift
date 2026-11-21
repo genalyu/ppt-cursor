@@ -211,6 +211,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             switch result {
             case .success(let imported):
                 images = imported
+                if monitoring { waiting = history.currentContext }
                 message("已载入 " + String(imported.count) + " 张素材")
             case .failure(let error): message(error.localizedDescription)
             }

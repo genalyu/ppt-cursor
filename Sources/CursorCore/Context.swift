@@ -92,6 +92,13 @@ public struct EditHistory: Sendable {
 
     public var current: SlideSnapshot? { states.last }
 
+    /// An explicit request, such as importing assets, can predict from a stationary slide.
+    public var currentContext: EditContext? {
+        guard let current else { return nil }
+        return EditContext(previous: Array(states.dropLast()), current: current,
+                           recentlyDismissed: dismissed.map(\.summary))
+    }
+
     public mutating func reset() {
         states.removeAll()
         dismissed.removeAll()
@@ -119,8 +126,7 @@ public struct EditHistory: Sendable {
         }
         states.append(state)
         if states.count > limit { states.removeFirst(states.count - limit) }
-        let context = EditContext(previous: Array(states.dropLast()), current: state,
-                                  recentlyDismissed: dismissed.map(\.summary))
+        let context = currentContext
         for index in dismissed.indices { dismissed[index].remaining -= 1 }
         dismissed.removeAll { $0.remaining == 0 }
         return context
