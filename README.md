@@ -8,6 +8,10 @@ PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它�
 
 解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
+## 试一次拖动预测
+
+用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「定位画布并开始」。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。要使用 Tab，请先在菜单栏勾选「用 Tab 采纳可见建议」。
+
 ## 本地构建与运行
 
 需要 macOS 13 或更新版本、Microsoft PowerPoint 桌面版、包含 Swift 5.9 或更高版本的 Xcode Command Line Tools，以及已登录的 Codex CLI 或 OpenAI API 密钥。当前版本可从 ChatGPT 桌面应用、Homebrew 的 Apple Silicon 路径或 Intel 路径发现 Codex。
