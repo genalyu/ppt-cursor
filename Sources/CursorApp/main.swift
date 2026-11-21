@@ -342,8 +342,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             return
         }
         if let old = calibratedWindow, let ppt = NSWorkspace.shared.frontmostApplication {
-            guard let current = PowerPointWindow.front(of: ppt), old.id == current.id,
-                  old.frame.size == current.frame.size else {
+            guard let current = PowerPointWindow.front(of: ppt), old.id == current.id else {
                 invalidate()
                 frame = nil
                 calibratedWindow = nil
@@ -353,7 +352,15 @@ final class Controller: NSObject, NSApplicationDelegate {
                 message("PowerPoint 窗口已改变，请重新定位画布")
                 return
             }
-            if old.frame.origin != current.frame.origin {
+            if old.frame.size != current.frame.size {
+                let ready = pending ?? hiddenSuggestion
+                let interrupted = waiting ?? inFlightContext
+                invalidate()
+                hiddenSuggestion = ready
+                waiting = interrupted
+                frame = nil
+                calibratedWindow = current
+            } else if old.frame.origin != current.frame.origin {
                 frame = frame?.offsetBy(dx: current.frame.minX - old.frame.minX, dy: current.frame.minY - old.frame.minY)
                 calibratedWindow = current
                 if let frame {
@@ -373,15 +380,19 @@ final class Controller: NSObject, NSApplicationDelegate {
                 case .success(let value):
                     guard let state = value else { self.invalidate(); self.history.reset(); return }
                     let previous = self.history.current
-                    if let previous, previous.viewZoom != state.viewZoom {
-                        self.invalidate()
+                    let viewChanged = previous.map {
+                        $0.viewZoom != state.viewZoom || $0.width != state.width || $0.height != state.height
+                    } ?? false
+                    if self.frame == nil || viewChanged {
+                        if viewChanged { self.invalidate() }
                         guard let window = self.calibratedWindow, CGPreflightScreenCaptureAccess(),
                               let page = PageLocator.locate(in: window, aspect: state.width / state.height) else {
+                            self.invalidate()
                             self.frame = nil
                             self.monitoring = false
                             self.history.reset()
                             self.toggle.title = "开始预测"
-                            self.message("缩放比例已改变，请重新定位幻灯片画布")
+                            self.message("页面显示范围已改变，请重新定位幻灯片画布")
                             return
                         }
                         self.frame = page
