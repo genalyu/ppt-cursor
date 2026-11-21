@@ -328,7 +328,7 @@ def page_png(pdf, output):
     subprocess.run(command, check=True, timeout=30)
 
 
-def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False):
+def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False, baseline_image=None):
     """Render both states from one baseline, without taking focus from PowerPoint."""
     with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
         scratch = Path(folder).resolve()
@@ -346,9 +346,13 @@ def render_pair(source, slide_id, fragment, destination, replace_id, require_vis
                 digest.update(chunk)
         target["candidateSHA256"] = digest.hexdigest()
         (result / "target.json").write_text(json.dumps(target, ensure_ascii=False))
-        export_page(scratch, page, [baseline, candidate])
-        for name in ("before", "after"):
-            page_png(str(scratch / (name + ".pdf")), result / (name + ".png"))
+        if baseline_image is None:
+            export_page(scratch, page, [baseline, candidate])
+            page_png(str(scratch / "before.pdf"), result / "before.png")
+        else:
+            shutil.copyfile(baseline_image, result / "before.png")
+            export_page(scratch, page, [candidate])
+        page_png(str(scratch / "after.pdf"), result / "after.png")
         visible = write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
         if require_visible and not visible:
             return False
@@ -541,6 +545,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
                   "For insertion use null. Geometry is in EMUs, 12700 per slide point. "
                   "Return only schema-conformant JSON. Do not use tools.\n")
         catalog, flags = reference_inputs(references, model_dir) if references else ([], [])
+        page_image = None
         if include_page:
             export_page(scratch, slide_page(baseline, selector), [baseline])
             page_image = model_dir / "current-slide.png"
@@ -576,7 +581,8 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
             raise ValueError("模型指定的替换对象不在当前页的可编辑图形中。")
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
-        if not render_pair(baseline, selector, fragment, output, proposal["replaceID"], require_visible=True):
+        if not render_pair(baseline, selector, fragment, output, proposal["replaceID"],
+                           require_visible=True, baseline_image=page_image):
             print("No visible change.")
             return
         (output / "summary.txt").write_text(proposal["summary"])
