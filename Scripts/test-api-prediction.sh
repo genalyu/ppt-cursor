@@ -61,6 +61,10 @@ let model = APIPredictor(settings: APISettings(model: "test-model", key: "test-o
 let image = ReferenceImage(name: "card", png: Data([3]), thumbnail: Data([2]))
 let result = try model.predict(context, images: [image], currentPage: Data([1]))
 precondition(result.edits.first?.id == "a")
+let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
+let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
+do { try combination.validate(for: context.current); fatalError("Accepted text on a non-text object") }
+catch PredictionError.invalidSuggestion { }
 MockAPI.malformed = true
 do { _ = try model.predict(context, images: [image], currentPage: Data([1])); fatalError("Unexpected success") }
 catch PredictionError.invalidResponse { }

@@ -31,18 +31,18 @@ public struct Prediction: Codable, Sendable {
     public let artwork: [Artwork]
 
     public func validate(for slide: SlideSnapshot, images: [ReferenceImage] = []) throws {
-        let ids = Set(slide.objects.map(\.id))
-        let sizedText = Set(slide.objects.filter { $0.fontSize != nil }.map(\.id))
-        let placeholders = Set(slide.objects.filter { $0.kind == "shape type place holder" }.map(\.id))
+        let sources = Dictionary(slide.objects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let originals = edits.filter { $0.duplicate != true }.map(\.id)
         guard summary.count <= 500, edits.count <= 100, artwork.count <= 12,
-              edits.allSatisfy({ $0.duplicate != true || !placeholders.contains($0.id) }),
-              edits.allSatisfy({ edit in
-                  guard let size = edit.fontSize else { return true }
-                  return sizedText.contains(edit.id) && (1...4000).contains(size)
-              }),
               Set(originals).count == originals.count,
-              edits.allSatisfy({ ids.contains($0.id) && $0.placement.validate(in: slide) && $0.rotation.isFinite && ($0.text?.count ?? 0) <= 20000 }),
+              edits.allSatisfy({ edit in
+                  guard let source = sources[edit.id], edit.placement.validate(in: slide),
+                        edit.rotation.isFinite else { return false }
+                  if edit.duplicate == true && source.kind == "shape type place holder" { return false }
+                  if let text = edit.text, source.text == nil || text.count > 20000 { return false }
+                  if let size = edit.fontSize, source.fontSize == nil || !(1...4000).contains(size) { return false }
+                  return true
+              }),
               artwork.allSatisfy({ $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
             throw PredictionError.invalidSuggestion
         }
