@@ -342,6 +342,19 @@ def sync_live_text(slide, shape, current_text):
     text_node.appendChild(slide.createTextNode(current_text))
 
 
+def sync_live_font_size(shape, points):
+    if type(points) not in (int, float) or not 1 <= points <= 4000:
+        return
+    bodies = shape.getElementsByTagNameNS(P, "txBody")
+    if len(bodies) != 1:
+        return
+    # Preserve theme inheritance in the editable copy. Update explicit run sizes only.
+    for run in bodies[0].getElementsByTagNameNS(A, "r"):
+        for properties in run.getElementsByTagNameNS(A, "rPr"):
+            if properties.hasAttribute("sz"):
+                properties.setAttribute("sz", str(round(points * 100)))
+
+
 def sync_live_fill(shape, rgb, transparency=None):
     if not isinstance(rgb, list) or len(rgb) != 3 or not all(type(v) is int and 0 <= v <= 255 for v in rgb):
         return
@@ -381,6 +394,7 @@ def copy_live_geometry(source, selector, current, baseline):
             if shape is None:
                 continue
             sync_live_text(slide, shape, obj.get("text"))
+            sync_live_font_size(shape, obj.get("fontSize"))
             sync_live_fill(shape, obj.get("solidFillRGB"), obj.get("fillTransparency"))
             transforms = shape.getElementsByTagNameNS(A, "xfrm")
             if len(transforms) != 1:
