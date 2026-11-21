@@ -100,7 +100,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 let stem = URL(fileURLWithPath: image.name).deletingPathExtension().lastPathComponent
                 let url = folder.appendingPathComponent(stem + ".png")
                 try image.png.write(to: url)
-                return url
+                return (url, image.name)
             }
             let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable(), references: references, session: session, includePage: setup.includePage.state == .on)
             try command.write(to: launcher, atomically: true, encoding: .utf8)

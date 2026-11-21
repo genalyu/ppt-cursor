@@ -491,10 +491,11 @@ def copy_live_geometry(source, selector, current, baseline):
 def reference_inputs(paths, scratch):
     from PIL import Image, ImageOps
     catalog, flags = [], []
-    for index, path in enumerate(paths):
+    for index, reference in enumerate(paths):
+        path, name = reference if isinstance(reference, tuple) else (reference, reference.name)
         with Image.open(path) as original:
             image = ImageOps.exif_transpose(original)
-            catalog.append({"name": path.name, "width": image.width, "height": image.height})
+            catalog.append({"name": name, "id": f"reference-{index}", "width": image.width, "height": image.height})
             image.thumbnail((768, 768), Image.Resampling.LANCZOS)
             preview = scratch / f"reference-{index}.png"
             image.convert("RGBA").save(preview)
@@ -770,6 +771,7 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="持续预览当前 PowerPoint 文稿中的原生图形建议。")
         parser.add_argument("source", type=Path, help="已在 PowerPoint 中打开的 PPTX 文件")
         parser.add_argument("--reference", type=Path, action="append", default=[], help="参考图片，可重复指定")
+        parser.add_argument("--named-reference", nargs=2, action="append", default=[], metavar=("PNG", "NAME"), help="参考预览图和原始文件名")
         parser.add_argument("--include-page", action="store_true", help="向模型发送当前页的排版预览")
         args = parser.parse_args(sys.argv[2:])
         source = args.source.resolve(strict=True)
@@ -791,6 +793,7 @@ if __name__ == "__main__":
         except ImportError:
             parser.error("当前 Python 环境缺少 Pillow")
         refs = [path.resolve(strict=True) for path in args.reference]
+        refs.extend((Path(path).resolve(strict=True), name) for path, name in args.named_reference)
         if not bundled:
             subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
             binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
