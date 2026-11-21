@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 struct InferenceTimeout: LocalizedError {
-    var errorDescription: String? { "模型响应超时，请继续编辑以重新预测。" }
+    var errorDescription: String? { "等待模型响应超时" }
 }
 
 /// Coordinates cancellation with Process.run so a late launch cannot escape a prior cancellation.

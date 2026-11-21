@@ -54,7 +54,28 @@ public struct Prediction: Codable, Sendable {
 
 }
 
-public enum PredictionError: Error { case invalidSuggestion, missingResult }
+public enum PredictionError: LocalizedError {
+    case invalidSuggestion, missingResult, invalidResponse, cliFailed(Int32)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidSuggestion: return "建议中的对象、位置或素材无法应用到当前幻灯片"
+        case .missingResult: return "模型未返回完整的编辑建议"
+        case .invalidResponse: return "模型返回的数据格式无法读取"
+        case .cliFailed(let status): return "Codex CLI 运行失败（退出码 \(status)），请检查登录状态和网络连接"
+        }
+    }
+}
+
+extension Prediction {
+    static func read(_ data: Data, for slide: SlideSnapshot, images: [ReferenceImage]) throws -> Prediction {
+        guard let suggestion = try? JSONDecoder().decode(Prediction.self, from: data) else {
+            throw PredictionError.invalidResponse
+        }
+        try suggestion.validate(for: slide, images: images)
+        return suggestion
+    }
+}
 
 enum PredictionInput {
     static let schema = ResourcesBundle.value.url(forResource: "prediction", withExtension: "json")!
@@ -110,9 +131,8 @@ public struct Predictor: Sendable {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try run.execute(process)
-        guard process.terminationStatus == 0 else { throw PredictionError.missingResult }
-        let suggestion = try JSONDecoder().decode(Prediction.self, from: Data(contentsOf: result))
-        try suggestion.validate(for: context.current, images: images)
-        return suggestion
+        guard process.terminationStatus == 0 else { throw PredictionError.cliFailed(process.terminationStatus) }
+        guard fm.fileExists(atPath: result.path) else { throw PredictionError.missingResult }
+        return try Prediction.read(Data(contentsOf: result), for: context.current, images: images)
     }
 }

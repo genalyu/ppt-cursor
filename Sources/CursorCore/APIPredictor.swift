@@ -73,13 +73,13 @@ public struct APIPredictor {
         response.ready.wait()
         guard let result = response.value else { throw PredictionError.missingResult }
         let responseData = try result.get()
-        let envelope = try JSONDecoder().decode(ResponseEnvelope.self, from: responseData)
+        guard let envelope = try? JSONDecoder().decode(ResponseEnvelope.self, from: responseData) else {
+            throw PredictionError.invalidResponse
+        }
         guard envelope.status == "completed",
               let text = envelope.output.flatMap({ $0.content ?? [] }).first(where: { $0.type == "output_text" })?.text else {
             throw PredictionError.missingResult
         }
-        let suggestion = try JSONDecoder().decode(Prediction.self, from: Data(text.utf8))
-        try suggestion.validate(for: context.current, images: images)
-        return suggestion
+        return try Prediction.read(Data(text.utf8), for: context.current, images: images)
     }
 }
