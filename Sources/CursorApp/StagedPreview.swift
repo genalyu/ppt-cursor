@@ -127,6 +127,16 @@ enum StagedPreview {
                                        page: frame, actionTitle: proposal == nil ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        let workspaceEvents = NSWorkspace.shared.notificationCenter
+        let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                                       object: nil, queue: .main) { _ in
+            guard !submitted, !powerpoint.isActive else { return }
+            shortcut.disable()
+            panel.orderOut(nil)
+            controls.orderOut(nil)
+            app.terminate(nil)
+        }
+        defer { workspaceEvents.removeObserver(focusObserver) }
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
             guard !submitted else { return }
