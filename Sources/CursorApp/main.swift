@@ -133,7 +133,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
-        if !monitoring && frame == nil { calibrate(); return }
+        if !monitoring && frame == nil { startEditing(); return }
         monitoring.toggle()
         invalidate()
         history.reset()
@@ -183,8 +183,16 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func startEditing() {
         guard !locating else { return }
-        guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first,
-              let window = PowerPointWindow.front(of: ppt) else { calibrate(); return }
+        guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
+            message("请打开 PowerPoint 和要编辑的演示文稿，然后点击「定位画布并开始」。")
+            openSetup()
+            return
+        }
+        guard let window = PowerPointWindow.front(of: ppt) else {
+            message("请显示 PowerPoint 的编辑窗口，然后点击「定位画布并开始」。")
+            openSetup()
+            return
+        }
         locating = true
         message("正在读取页面尺寸。若系统询问，请允许控制 PowerPoint。")
         ppt.activate(options: [])
