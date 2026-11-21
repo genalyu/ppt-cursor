@@ -86,11 +86,18 @@
           },
           "svg": {
             "type": "string"
+          },
+          "referenceID": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "placement",
-          "svg"
+          "svg",
+          "referenceID"
         ],
         "additionalProperties": false
       }

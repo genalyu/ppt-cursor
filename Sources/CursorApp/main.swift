@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import CursorCore
 import MacIntegration
 
@@ -9,6 +10,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var frame: NSRect?
     private var calibration: NSPanel?
     private var overlay: NSPanel?
+    private var images: [ReferenceImage] = []
     private var history = EditHistory()
     private var monitoring = false
     private var reading = false
@@ -28,7 +30,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         menu.addItem(status)
         menu.addItem(.separator())
         for (title, action) in [("定位幻灯片画布…", #selector(calibrate)), ("采纳当前建议", #selector(accept)),
-                                ("忽略当前建议", #selector(dismiss)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
+                                ("清空图片素材", #selector(clearImages)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -68,6 +71,26 @@ final class Controller: NSObject, NSApplicationDelegate {
         history.reset()
         toggle.title = monitoring ? "暂停预测" : "开始预测"
         message(monitoring ? "等待 PowerPoint 编辑" : "已暂停")
+    }
+
+    @objc private func clearImages() {
+        invalidate()
+        images.removeAll()
+        message("已清空素材")
+    }
+
+    @objc private func chooseImages() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff]
+        panel.allowsMultipleSelection = true
+        panel.message = "选择供预测使用的图片。模型会收到文件名及缩略图。重新选择将替换本次素材。"
+        guard panel.runModal() == .OK else { return }
+        do {
+            let imported = try panel.urls.map(ImageImport.read)
+            invalidate()
+            images = imported
+            message("已载入 " + String(imported.count) + " 张素材")
+        } catch { message(error.localizedDescription) }
     }
 
     @objc private func calibrate() {
@@ -129,6 +152,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private func startPrediction() {
         guard inference == nil, let context = waiting else { return }
         waiting = nil
+        let references = images
         let run = PredictionRun()
         inference = run
         let revision = generation
@@ -139,7 +163,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 guard let path = paths.first(where: FileManager.default.isExecutableFile(atPath:)) else {
                     throw NSError(domain: "PPTCursor", code: 1, userInfo: [NSLocalizedDescriptionKey: "请安装并登录 Codex CLI"])
                 }
-                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, run: run)
+                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, images: references, run: run)
             }
             DispatchQueue.main.async {
                 self.inference = nil
@@ -162,7 +186,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.level = .floating
-        panel.contentView = PreviewCanvas(slide: state, suggestion: prediction, frame: NSRect(origin: .zero, size: frame.size), diagnosticBackground: false)
+        panel.contentView = PreviewCanvas(slide: state, suggestion: prediction, frame: NSRect(origin: .zero, size: frame.size), diagnosticBackground: false, images: images)
         panel.orderFrontRegardless()
         overlay = panel
         pending = (state, prediction)
@@ -171,11 +195,12 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func accept() {
         guard frontmost, !applying, let (state, proposal) = pending else { return }
+        let references = images
         applying = true
         invalidate()
         let revision = generation
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try PowerPointBridge.apply(proposal, to: state) }
+            let result = Result { try PowerPointBridge.apply(proposal, to: state, images: references) }
             DispatchQueue.main.async {
                 self.applying = false
                 guard revision == self.generation else { return }

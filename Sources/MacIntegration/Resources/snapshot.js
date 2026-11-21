@@ -78,7 +78,9 @@ function run(args) {
             }
             saved.push(copy);
         }
-        const data = $(asset.svg).dataUsingEncoding($.NSUTF8StringEncoding);
+        const data = asset.referenceID
+            ? $.NSData.alloc.initWithBase64EncodedStringOptions($(request.sources[asset.referenceID]), 0)
+            : $(asset.svg).dataUsingEncoding($.NSUTF8StringEncoding);
         const image = $.NSImage.alloc.initWithData(data);
         if (!image || !image.isValid) throw Error("无法渲染建议素材");
         const count = slide.shapes.length;

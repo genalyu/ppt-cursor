@@ -19,6 +19,7 @@ public struct ObjectEdit: Codable, Sendable {
 
 public struct Artwork: Codable, Sendable {
     public let placement: Placement
+    public let referenceID: String?
     public let svg: String
 }
 
@@ -27,15 +28,20 @@ public struct Prediction: Codable, Sendable {
     public let edits: [ObjectEdit]
     public let artwork: [Artwork]
 
-    public func validate(for slide: SlideSnapshot) throws {
+    public func validate(for slide: SlideSnapshot, images: [ReferenceImage] = []) throws {
         let ids = Set(slide.objects.map(\.id))
         guard summary.count <= 500, edits.count <= 100, artwork.count <= 12,
               Set(edits.map(\.id)).count == edits.count,
               edits.allSatisfy({ ids.contains($0.id) && $0.placement.validate(in: slide) && $0.rotation.isFinite && ($0.text?.count ?? 0) <= 20000 }),
-              artwork.allSatisfy({ $0.placement.validate(in: slide) && VectorAsset.accepts($0.svg) }) else {
+              artwork.allSatisfy({ $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
             throw PredictionError.invalidSuggestion
         }
     }
+    private func validArtwork(_ art: Artwork, images: [ReferenceImage]) -> Bool {
+        if let id = art.referenceID { return art.svg.isEmpty && images.contains { $0.id == id } }
+        return VectorAsset.accepts(art.svg)
+    }
+
 }
 
 public enum PredictionError: Error { case invalidSuggestion, missingResult }
@@ -46,7 +52,7 @@ public struct Predictor: Sendable {
     public let executable: URL
     public init(executable: URL) { self.executable = executable }
 
-    public func predict(_ context: EditContext, run: PredictionRun = PredictionRun()) throws -> Prediction {
+    public func predict(_ context: EditContext, images: [ReferenceImage] = [], run: PredictionRun = PredictionRun()) throws -> Prediction {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -59,8 +65,19 @@ public struct Predictor: Sendable {
         process.currentDirectoryURL = dir
         process.arguments = ["exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
                              "--output-schema", schema.path, "--output-last-message", result.path, "-"]
+        var attachments: [String] = []
+        var catalog: [[String: String]] = []
+        for image in images {
+            let url = dir.appendingPathComponent(image.id + ".png")
+            try image.thumbnail.write(to: url)
+            attachments += ["--image", url.path]
+            catalog.append(["id": image.id, "name": image.name])
+        }
+        process.arguments?.insert(contentsOf: attachments, at: 1)
         let input = dir.appendingPathComponent("input")
         var request = Data((prompt + "\n").utf8)
+        request.append(try JSONEncoder().encode(catalog))
+        request.append(Data("\n".utf8))
         request.append(try JSONEncoder().encode(context))
         try request.write(to: input)
         let handle = try FileHandle(forReadingFrom: input)
@@ -71,7 +88,7 @@ public struct Predictor: Sendable {
         try run.execute(process)
         guard process.terminationStatus == 0 else { throw PredictionError.missingResult }
         let suggestion = try JSONDecoder().decode(Prediction.self, from: Data(contentsOf: result))
-        try suggestion.validate(for: context.current)
+        try suggestion.validate(for: context.current, images: images)
         return suggestion
     }
 }

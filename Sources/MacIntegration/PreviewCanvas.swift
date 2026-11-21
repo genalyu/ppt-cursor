@@ -3,11 +3,13 @@ import CursorCore
 
 /// The same view renders to the transparent panel and to a bitmap for regression inspection.
 public final class PreviewCanvas: NSView {
+    let images: [ReferenceImage]
     let slide: SlideSnapshot
     let suggestion: Prediction
     let diagnosticBackground: Bool
 
-    public init(slide: SlideSnapshot, suggestion: Prediction, frame: NSRect, diagnosticBackground: Bool) {
+    public init(slide: SlideSnapshot, suggestion: Prediction, frame: NSRect, diagnosticBackground: Bool, images: [ReferenceImage] = []) {
+        self.images = images
         self.slide = slide
         self.suggestion = suggestion
         self.diagnosticBackground = diagnosticBackground
@@ -57,7 +59,8 @@ public final class PreviewCanvas: NSView {
         }
         for asset in suggestion.artwork {
             let p = asset.placement
-            NSImage(data: Data(asset.svg.utf8))?.draw(in: NSRect(x: p.x, y: p.y, width: p.width, height: p.height),
+            let bytes = asset.referenceID.flatMap { id in images.first { $0.id == id }?.png } ?? Data(asset.svg.utf8)
+            NSImage(data: bytes)?.draw(in: NSRect(x: p.x, y: p.y, width: p.width, height: p.height),
                                                       from: .zero, operation: .sourceOver, fraction: 0.85,
                                                       respectFlipped: true, hints: nil)
         }

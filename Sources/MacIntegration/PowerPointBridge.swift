@@ -9,15 +9,18 @@ public struct BridgeFailure: LocalizedError {
 public enum PowerPointBridge {
     public static func capture() throws -> SlideSnapshot? { try run([]) }
 
-    public static func apply(_ prediction: Prediction, to baseline: SlideSnapshot) throws -> SlideSnapshot {
-        try prediction.validate(for: baseline)
+    public static func apply(_ prediction: Prediction, to baseline: SlideSnapshot, images: [ReferenceImage] = []) throws -> SlideSnapshot {
+        try prediction.validate(for: baseline, images: images)
         struct Request: Encodable {
             let baseline: SlideSnapshot
+            let sources: [String: Data]
             let proposal: Prediction
         }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: file) }
-        let data = try JSONEncoder().encode(Request(baseline: baseline, proposal: prediction))
+        let used = Set(prediction.artwork.compactMap(\.referenceID))
+        let sources = Dictionary(uniqueKeysWithValues: images.filter { used.contains($0.id) }.map { ($0.id, $0.png) })
+        let data = try JSONEncoder().encode(Request(baseline: baseline, sources: sources, proposal: prediction))
         guard FileManager.default.createFile(atPath: file.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
             throw BridgeFailure("无法准备 PowerPoint 操作。")
         }

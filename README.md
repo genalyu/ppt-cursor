@@ -36,3 +36,7 @@ swift run ppt-preview current.json suggestion.json preview.png
 `ppt-inspect` 从当前 PowerPoint 编辑页读取 JSON。开发样本应使用自己的测试文稿。请勿将私有幻灯片内容提交到公开仓库。
 
 MIT License
+
+### 提供已有图片
+
+从菜单中选择「选择本次编辑的图片素材…」即可载入 PNG、JPEG、HEIC 或 TIFF，可一次选择多张。预测时，模型会看到所选素材的文件名和缩略图；模型选择某张图片后，画布预览和最终插入均使用同一份本地像素数据。应用保留方向和透明度，长边最多 3072 像素。可在菜单中随时清空素材。
