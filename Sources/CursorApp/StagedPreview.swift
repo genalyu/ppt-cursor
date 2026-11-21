@@ -141,20 +141,28 @@ enum StagedPreview {
         controls.orderFrontRegardless()
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
         let workspaceEvents = NSWorkspace.shared.notificationCenter
-        let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
-                                                       object: nil, queue: .main) { _ in
-            guard !submitted, !powerpoint.isActive else { return }
-            trace("dismissed on application switch")
+        var hidden = false
+        var focusGeneration = 0
+        func suspendPreview() {
+            guard !submitted, !hidden else { return }
+            hidden = true
+            focusGeneration += 1
             shortcut.disable()
             panel.orderOut(nil)
             controls.orderOut(nil)
-            app.terminate(nil)
+            trace("suspended on application switch")
+        }
+        let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                                       object: nil, queue: .main) { _ in
+            guard !submitted, !powerpoint.isActive else { return }
+            suspendPreview()
         }
         defer { workspaceEvents.removeObserver(focusObserver) }
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
             guard !submitted else { return }
-            guard powerpoint.isActive, (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
+            guard powerpoint.isActive else { suspendPreview(); return }
+            guard (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
                   let current = PowerPointWindow.front(of: powerpoint),
                   current.id == window.id, current.frame == window.frame else {
                 trace("dismissed on foreground, pointer or window change")
@@ -162,14 +170,25 @@ enum StagedPreview {
                 return
             }
             guard !reading else { return }
+            let generation = focusGeneration
             reading = true
             DispatchQueue.global(qos: .userInitiated).async {
                 let valid = matchesPage(current) && (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
-                    if !submitted && !valid {
+                    guard !submitted, powerpoint.isActive, generation == focusGeneration else { return }
+                    if !valid {
                         trace("dismissed on page or selection change")
                         app.terminate(nil)
+                    } else if hidden {
+                        hidden = false
+                        if proposal != nil {
+                            let label = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
+                            controls.updateShortcut(label)
+                        }
+                        panel.orderFrontRegardless()
+                        controls.orderFrontRegardless()
+                        trace("resumed after baseline verification")
                     }
                 }
             }

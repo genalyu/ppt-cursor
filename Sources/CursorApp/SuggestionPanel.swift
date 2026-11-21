@@ -6,6 +6,10 @@ final class SuggestionPanel: NSPanel {
     private let confirm = NSButton()
     private let skip = NSButton()
 
+    func updateShortcut(_ label: String?) {
+        confirm.title = label.map { "采纳  " + $0 } ?? "采纳"
+    }
+
     func showStatus(_ text: String, finished: Bool) {
         label.stringValue = text
         label.toolTip = text
