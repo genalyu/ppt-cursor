@@ -103,16 +103,17 @@ public final class PreviewCanvas: NSView {
             rotation.rotate(byDegrees: edit.rotation)
             rotation.translateX(by: -rect.midX, yBy: -rect.midY)
             rotation.concat()
+            let original = slide.objects.first { $0.id == edit.id }
+            let outline = original?.autoShapeType == "autoshape oval" ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
             if edit.text == nil, edit.fontSize == nil, let picture = picturePreviews[edit.id] {
                 picture.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.7, respectFlipped: true, hints: nil)
             } else {
-                let original = slide.objects.first { $0.id == edit.id }
                 let replacesText = edit.text.map { $0 != original?.text } ?? false
                 let changesSize = edit.fontSize.map { $0 != original?.fontSize } ?? false
                 if replacesText || changesSize {
                     // Mask existing glyphs under the proposed text, including when clearing a box.
                     NSColor.white.setFill()
-                    rect.fill()
+                    outline.fill()
                 }
                 if let rgb = edit.solidFillRGB, rgb.count == 3 {
                     NSColor(srgbRed: CGFloat(rgb[0]) / 255, green: CGFloat(rgb[1]) / 255,
@@ -120,10 +121,9 @@ public final class PreviewCanvas: NSView {
                 } else {
                     NSColor.systemTeal.withAlphaComponent(0.19).setFill()
                 }
-                rect.fill()
+                outline.fill()
                 drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
             }
-            let outline = NSBezierPath(rect: rect)
             outline.lineWidth = 2 / scale
             outline.setLineDash([6 / scale, 4 / scale], count: 2, phase: 0)
             NSColor.systemTeal.setStroke()

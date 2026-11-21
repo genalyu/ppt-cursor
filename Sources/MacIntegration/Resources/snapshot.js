@@ -71,6 +71,7 @@ function snapshot() {
         }
         return {
             table, fontSize, solidFillRGB,
+            autoShapeType: kind === "shape type auto" ? String(shape.autoShapeType()) : undefined,
             id: JSON.stringify([name, occurrence]),
             kind,
             name,
