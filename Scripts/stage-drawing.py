@@ -40,6 +40,27 @@ def slide_part(package, selector):
     return posixpath.normpath(posixpath.join("ppt", targets[0])).lstrip("/")
 
 
+def native_shape_id(tree, live_key):
+    name, occurrence = json.loads(live_key)
+    if not isinstance(name, str) or type(occurrence) is not int or occurrence < 1:
+        raise ValueError("Expected a live object ID containing a name and occurrence")
+    count = 0
+    for child in tree.childNodes:
+        if child.nodeType != Node.ELEMENT_NODE or child.localName in ("nvGrpSpPr", "grpSpPr", "extLst"):
+            continue
+        metadata = next((node for node in child.childNodes if node.namespaceURI == P
+                         and node.localName.startswith("nv")), None)
+        if metadata is None:
+            continue
+        identity = next((node for node in metadata.childNodes if node.namespaceURI == P
+                         and node.localName == "cNvPr"), None)
+        if identity is not None and identity.getAttribute("name") == name:
+            count += 1
+            if count == occurrence:
+                return int(identity.getAttribute("id"))
+    raise ValueError("Live object does not match a shape in this slide copy")
+
+
 def stage(source, part, fragment, output, replace_id=None):
     raw = fragment.read_bytes()
     if len(raw) > 200_000 or b"<!" in raw or b"<?" in raw:
@@ -70,6 +91,8 @@ def stage(source, part, fragment, output, replace_id=None):
             shape.setAttribute("xmlns:p", P)
             shape.setAttribute("xmlns:a", A)
             replacement = slide.importNode(shape, True)
+            if isinstance(replace_id, str):
+                replace_id = native_shape_id(tree, replace_id)
             if replace_id is None:
                 identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
                 identity.setAttribute("id", str(max(ids, default=0) + 1))
@@ -148,8 +171,10 @@ if __name__ == "__main__":
     parser.add_argument("slide_part", help="Live PowerPoint slideID or explicit PPTX slide part")
     parser.add_argument("fragment", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument("--live-object", help="Object ID from the current PowerPoint snapshot")
+    target.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
     parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png, overlay.png and after.pptx to a new output directory (LibreOffice, pdftoppm and Pillow required)")
     args = parser.parse_args()
     operation = render_pair if args.render_pair else stage
-    operation(args.source, args.slide_part, args.fragment, args.output, args.replace_id)
+    operation(args.source, args.slide_part, args.fragment, args.output, args.live_object if args.live_object is not None else args.replace_id)
