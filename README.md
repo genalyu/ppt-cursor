@@ -55,7 +55,7 @@ open "dist/PPT Cursor.app"
 
 ## 试用原生图形预测
 
-在 PowerPoint 打开本地 PPTX，然后从启动窗口或菜单栏选择「启动开放式预测…」。应用会读取当前文稿的文件位置并直接开始，菜单栏的「为其他文稿启动预测…」可手动选择。自动定位画布需要 macOS 屏幕录制权限。仅定位时，窗口像素在本机处理。应用会切回 PowerPoint，在控制窗口显示会话状态。可在菜单栏选择「停止开放式预测」。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要 LibreOffice 和安装了 Pillow 的 Python 3。Preview 29 支持已登录的 Codex CLI 和 OpenAI API。使用 API 时，先在「模型连接…」选择模型并填写密钥，再启动开放式会话。也可以直接运行包内脚本：
+在 PowerPoint 打开本地 PPTX，然后从启动窗口或菜单栏选择「启动开放式预测…」。应用会读取当前文稿的文件位置并直接开始，菜单栏的「为其他文稿启动预测…」可手动选择。自动定位画布需要 macOS 屏幕录制权限。未授权或自动定位失败时，建议生成后可沿当前幻灯片边缘拖出矩形，继续在画布上预览和采纳。按 Esc 可取消框选。仅定位时，窗口像素在本机处理。应用会切回 PowerPoint，在控制窗口显示会话状态。可在菜单栏选择「停止开放式预测」。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要 LibreOffice 和安装了 Pillow 的 Python 3。Preview 29 支持已登录的 Codex CLI 和 OpenAI API。使用 API 时，先在「模型连接…」选择模型并填写密钥，再启动开放式会话。也可以直接运行包内脚本：
 
 ```sh
 python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"

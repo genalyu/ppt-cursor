@@ -25,18 +25,39 @@ enum StagedPreview {
               try PowerPointBridge.capture() == baseline else {
             throw CocoaError(.userCancelled)
         }
-        guard CGPreflightScreenCaptureAccess() else {
-            throw NSError(domain: "PPTCursor.Preview", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "请在系统设置的“隐私与安全性”中允许 PPT Cursor 录制屏幕，然后重新启动会话。"
-            ])
-        }
-        guard let frame = PageLocator.locate(in: window, aspect: baseline.width / baseline.height) else {
-            throw NSError(domain: "PPTCursor.Preview", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "无法识别页面边界。请在 PowerPoint 普通视图中完整显示当前页，或从控制窗口手动定位画布。"
-            ])
-        }
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
+        let aspect = baseline.width / baseline.height
+        let detected = CGPreflightScreenCaptureAccess() ? PageLocator.locate(in: window, aspect: aspect) : nil
+        let frame: NSRect
+        if let detected {
+            frame = detected
+        } else {
+            let picker = CalibrationPanel(contentRect: window.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            picker.isOpaque = false
+            picker.backgroundColor = .clear
+            picker.level = .screenSaver
+            var selection: NSRect?
+            let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size), aspect: aspect) { rect in
+                selection = rect
+                app.stopModal()
+            }
+            picker.contentView = view
+            app.activate(ignoringOtherApps: true)
+            picker.makeKeyAndOrderFront(nil)
+            picker.makeFirstResponder(view)
+            app.runModal(for: picker)
+            picker.orderOut(nil)
+            powerpoint.activate(options: [])
+            guard let selection, let current = PowerPointWindow.front(of: powerpoint),
+                  current.id == window.id, current.frame == window.frame,
+                  try PowerPointBridge.capture() == baseline else { throw CocoaError(.userCancelled) }
+            frame = selection
+        }
+        func locate(_ current: PowerPointWindow) -> NSRect? {
+            if detected == nil { return current.id == window.id && current.frame == window.frame ? frame : nil }
+            return PageLocator.locate(in: current, aspect: aspect)
+        }
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
         panel.backgroundColor = .clear
@@ -60,7 +81,7 @@ enum StagedPreview {
         weak var activeShortcut: AcceptShortcut?
         func matchesPage(_ current: PowerPointWindow) -> Bool {
             current.id == window.id && current.frame == displayedWindow.frame &&
-                PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == displayedPage
+                locate(current) == displayedPage
         }
         let actions = StagedActions {
             guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
@@ -157,6 +178,11 @@ enum StagedPreview {
         feedbackPanel = controls
         controls.orderFrontRegardless()
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
+        // A manually selected page cannot be remeasured after a scroll, zoom or canvas click.
+        let manualMonitor = detected == nil ? NSEvent.addGlobalMonitorForEvents(matching: [.scrollWheel, .magnify, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { _ in
+            if !submitted { app.terminate(nil) }
+        } : nil
+        defer { if let manualMonitor { NSEvent.removeMonitor(manualMonitor) } }
         let workspaceEvents = NSWorkspace.shared.notificationCenter
         var hidden = false
         var focusGeneration = 0
@@ -197,7 +223,7 @@ enum StagedPreview {
             let generation = focusGeneration
             reading = true
             DispatchQueue.global(qos: .userInitiated).async {
-                let page = PageLocator.locate(in: current, aspect: baseline.width / baseline.height)
+                let page = locate(current)
                 let valid = (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
