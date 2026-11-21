@@ -165,14 +165,14 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
             raise
 
 
-def copy_live_positions(source, selector, current, baseline):
-    """Carry current top-level native shape positions into the temporary baseline."""
+def copy_live_geometry(source, selector, current, baseline):
+    """Carry current top-level native shape and picture transforms into the temporary baseline."""
     with ZipFile(source) as original, ZipFile(baseline, "x") as staged:
         part = slide_part(original, selector)
         slide = minidom.parseString(original.read(part))
         tree, = slide.getElementsByTagNameNS(P, "spTree")
         by_id = {int(shape.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id")): shape
-                 for shape in tree.childNodes if shape.namespaceURI == P and shape.localName == "sp"}
+                 for shape in tree.childNodes if shape.namespaceURI == P and shape.localName in ("sp", "pic")}
         for obj in current["objects"]:
             shape = by_id.get(native_shape_id(tree, obj["id"]))
             if shape is None:
@@ -183,8 +183,16 @@ def copy_live_positions(source, selector, current, baseline):
             offsets = transforms[0].getElementsByTagNameNS(A, "off")
             if len(offsets) != 1:
                 continue
+            transform = transforms[0]
             for axis in ("x", "y"):
                 offsets[0].setAttribute(axis, str(round(obj[axis] * 12700)))
+            extents = transform.getElementsByTagNameNS(A, "ext")
+            if len(extents) == 1:
+                for field, attr in (("width", "cx"), ("height", "cy")):
+                    if field in obj:
+                        extents[0].setAttribute(attr, str(round(obj[field] * 12700)))
+            if "rotation" in obj:
+                transform.setAttribute("rot", str(round((obj["rotation"] % 360) * 60000)))
         for member in original.infolist():
             data = slide.toxml(encoding="utf-8") if member.filename == part else original.read(member)
             staged.writestr(member, data)
@@ -205,7 +213,7 @@ def predict_preview(source, selector, history_file, output):
     with tempfile.TemporaryDirectory() as directory:
         scratch = Path(directory)
         baseline = scratch / "baseline.pptx"
-        tree = copy_live_positions(source, selector, states[-1], baseline)
+        tree = copy_live_geometry(source, selector, states[-1], baseline)
         shapes = [node.toxml() for node in tree.childNodes if node.namespaceURI == P and node.localName == "sp"]
         schema = {"type": "object", "additionalProperties": False,
                   "required": ["summary", "replaceID", "drawing"],
