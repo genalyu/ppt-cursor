@@ -15,6 +15,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var suggestionPanel: SuggestionPanel?
     private var api: APISettings?
     private var images: [ReferenceImage] = []
+    private var predictWithImportedImages = false
     private var imageImport: Task<Void, Never>?
     private var history = EditHistory()
     private var monitoring = false
@@ -181,6 +182,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         imageImport = nil
         invalidate()
         images.removeAll()
+        predictWithImportedImages = false
         message("已清空素材")
     }
 
@@ -211,7 +213,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             switch result {
             case .success(let imported):
                 images = imported
-                if monitoring { waiting = history.currentContext }
+                predictWithImportedImages = true
                 message("已载入 " + String(imported.count) + " 张素材")
             case .failure(let error): message(error.localizedDescription)
             }
@@ -398,8 +400,10 @@ final class Controller: NSObject, NSApplicationDelegate {
                         }
                         self.frame = page
                     }
-                    let context = self.history.observe(state)
-                    if previous != state {
+                    let edit = self.history.observe(state)
+                    if previous != state || self.predictWithImportedImages {
+                        let context = self.predictWithImportedImages ? self.history.currentContext : edit
+                        self.predictWithImportedImages = false
                         self.invalidate()
                         self.waiting = context
                         self.message(context == nil ? "已读取幻灯片，等待编辑" : "正在判断下一步…")
