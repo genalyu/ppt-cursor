@@ -123,11 +123,11 @@ final class Controller: NSObject, NSApplicationDelegate {
         overlay?.orderOut(nil)
         overlay = nil
     }
-    private var useTab: Bool { UserDefaults.standard.bool(forKey: "acceptWithTab") }
+    private var useTab: Bool { AcceptShortcut.prefersTab }
 
     @objc private func toggleTab(_ sender: NSMenuItem) {
         let enabled = !useTab
-        UserDefaults.standard.set(enabled, forKey: "acceptWithTab")
+        AcceptShortcut.prefersTab = enabled
         sender.state = enabled ? .on : .off
         if let (state, proposal) = pending {
             invalidate()
@@ -509,7 +509,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
             self?.hideDuringCanvasDrag()
         }
-        let registerTab = useTab && state.editingText == false
+        let registerTab = AcceptShortcut.allowsTab(editingText: state.editingText)
         let shortcutLabel = shortcut.registerPreferred(useTab: registerTab)
         let controls = SuggestionPanel(summary: prediction.summary, shortcutLabel: shortcutLabel,
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)

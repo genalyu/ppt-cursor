@@ -10,6 +10,14 @@ import Carbon
 // Exercise the same application-target Carbon handler as an OS hotkey notification.
 // This verifies dispatch, payload filtering and registration lifecycle separately from hardware.
 _ = NSApplication.shared
+let savedPreference = UserDefaults.standard.object(forKey: "acceptWithTab")
+defer { UserDefaults.standard.set(savedPreference, forKey: "acceptWithTab") }
+for enabled in [true, false] {
+    AcceptShortcut.prefersTab = enabled
+    precondition(AcceptShortcut.allowsTab(editingText: false) == enabled)
+    precondition(!AcceptShortcut.allowsTab(editingText: true))
+    precondition(!AcceptShortcut.allowsTab(editingText: nil))
+}
 var count = 0
 let shortcut = AcceptShortcut { count += 1 }
 func send(id: UInt32) {

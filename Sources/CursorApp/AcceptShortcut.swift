@@ -1,6 +1,15 @@
 import Carbon
 
 final class AcceptShortcut {
+    static var prefersTab: Bool {
+        get { UserDefaults.standard.bool(forKey: "acceptWithTab") }
+        set { UserDefaults.standard.set(newValue, forKey: "acceptWithTab") }
+    }
+
+    static func allowsTab(editingText: Bool?) -> Bool {
+        prefersTab && editingText == false
+    }
+
     private var key: EventHotKeyRef?
     private var registrationID: UInt32 = 0
     private var handler: EventHandlerRef?

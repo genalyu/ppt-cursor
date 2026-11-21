@@ -74,7 +74,7 @@ enum StagedPreview {
         var shortcutLabel: String?
         if let proposal {
             try proposal.validate(for: baseline)
-            shortcutLabel = shortcut.registerPreferred(useTab: baseline.editingText == false)
+            shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
         }
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
         let controls = SuggestionPanel(summary: proposal == nil ? "仅预览 · " + summary : summary,
