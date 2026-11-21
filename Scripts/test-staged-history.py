@@ -78,3 +78,32 @@ def accepted_baselines(save_before_last_edit):
 assert accepted_baselines(False) == [b"original file", b"accepted diamond"]
 assert accepted_baselines(True) == [b"original file", b"new saved version"]
 print("Verified accepted geometry before save and refreshed baseline after save")
+
+
+def stale_during_prediction():
+    source = Path(__file__).resolve().parents[1] / "Examples/Tab-Demo.pptx"
+    def snapshot(x):
+        objects = [dict(id=json.dumps([f"TextBox {n}", 1], separators=(",", ":")), x=x if n == 1 else n * 190,
+                        y=200, width=145, height=45, rotation=0) for n in range(1, 4)]
+        return json.dumps(dict(document=str(source), slideID=256, width=720, height=540, objects=objects))
+    # First edit changes again before the request. The next changes during inference.
+    states = map(snapshot, [10, 20, 20, 30, 30, 30, 30, 40, 40, 40, 40, 40])
+    requested = []
+    def model(settings, prompt, context, images, schema):
+        requested.append(json.loads(context)["current"]["objects"][0]["x"])
+        if requested == [30]:
+            # This malformed response must be discarded before any validation or rendering.
+            return None
+        return {"drawing": "", "replaceID": None, "summary": ""}
+    with tempfile.TemporaryDirectory() as tmp, patch.object(staging.subprocess, "check_output", side_effect=states), \
+         patch.object(staging, "api_proposal", side_effect=model), patch.object(staging, "render_pair") as render, \
+         patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, Path(tmp) / "preview", api={"model": "test"})
+        except StopIteration:
+            pass
+        render.assert_not_called()
+    assert requested == [30, 40], requested
+
+stale_during_prediction()
+print("Verified stale request skipped, stale result discarded and latest edit predicted")
