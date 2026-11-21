@@ -87,7 +87,7 @@ function run(args) {
         try {
             if (!board.setDataForType(image.TIFFRepresentation, $("public.tiff"))) throw Error("无法准备素材");
             version = board.changeCount;
-            app.pasteObject(app.activeWindow.view);
+            app.activeWindow.view.pasteObject();
             if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增图片");
             const shape = slide.shapes[count];
             inserted.push(shape);
