@@ -530,6 +530,10 @@ def reference_inputs(paths, scratch):
     return catalog, flags
 
 
+def slide_content(state):
+    return state.get("width"), state.get("height"), state["objects"]
+
+
 def refreshed_snapshot(previous, current):
     if "acceptedSuggestion" in previous:
         return dict(current, acceptedSuggestion=previous["acceptedSuggestion"])
@@ -712,7 +716,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 time.sleep(0.5)
                 continue
             if awaiting_save is not None:
-                if state and state["slideID"] == awaiting_save[0] and state["objects"] == last_prediction:
+                if state and state["slideID"] == awaiting_save[0] and slide_content(state) == last_prediction:
                     if file_revision(source) == awaiting_save[1]:
                         time.sleep(0.5)
                         continue
@@ -727,11 +731,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 history = [state]
                 last_prediction = None
                 dismissed.clear()
-            elif history[-1]["objects"] != state["objects"]:
+            elif slide_content(history[-1]) != slide_content(state):
                 history = history[-7:] + [state]
-            elif (len(history) > 1 or references_pending) and state["objects"] != last_prediction:
+            elif (len(history) > 1 or references_pending) and slide_content(state) != last_prediction:
                 references_pending = False
-                last_prediction = state["objects"]
+                last_prediction = slide_content(state)
                 history[-1] = refreshed_snapshot(history[-1], state)
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
@@ -768,7 +772,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                                 final_state = json.loads(accepted.read_text())
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 history = history[-7:] + [dict(final_state, acceptedSuggestion=summary)]
-                                last_prediction = final_state["objects"]
+                                last_prediction = slide_content(final_state)
                             elif (candidate / "dismissed").exists():
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 dismissed = [item for item in dismissed if item != summary][-7:] + [summary]
@@ -783,7 +787,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                             raise
                         return
                     shutil.rmtree(candidate)
-                    if confirmed and confirmed["slideID"] == state["slideID"] and confirmed["objects"] == state["objects"]:
+                    if confirmed and confirmed["slideID"] == state["slideID"] and slide_content(confirmed) == slide_content(state):
                         # The selection or saved document changed during inference.
                         last_prediction = None
                         references_pending = len(history) == 1 and bool(references)
