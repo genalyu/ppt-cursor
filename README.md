@@ -67,7 +67,7 @@ MIT License
 带素材的预测也可通过命令行复现。每个 `--image` 对应一张图片，后续 JSON 文件按编辑时间排序。
 
 ```sh
-swift run ppt-inspect predict --image swatch.png before.json current.json
+swift run ppt-inspect predict --image swatch.png current.json
 ```
 
 临时离开 PowerPoint 时，应用会隐藏预览并释放快捷键。返回同一页后会核对内容，再恢复仍然有效的建议。命令行启动时可以传入 `--start-editing` 直接定位当前页，或用 `--verbose` 将状态与建议输出到终端。

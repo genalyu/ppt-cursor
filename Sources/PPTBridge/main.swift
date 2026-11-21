@@ -14,14 +14,14 @@ func predict(arguments: [String]) throws {
             files.append(arg)
         }
     }
-    guard files.count >= 2 else { throw CLIError.usage }
+    guard !files.isEmpty, files.count >= 2 || !images.isEmpty else { throw CLIError.usage }
     var history = EditHistory()
     var context: EditContext?
     for file in files {
         let state = try JSONDecoder().decode(SlideSnapshot.self, from: Data(contentsOf: URL(fileURLWithPath: file)))
         context = history.observe(state)
     }
-    guard let context else { throw CLIError.noChange }
+    guard let context = context ?? (images.isEmpty ? nil : history.currentContext) else { throw CLIError.noChange }
     guard let executable = CodexInstallation.executable(preferShellPath: true) else { throw CLIError.codexMissing }
     let prediction = try Predictor(executable: executable).predict(context, images: images)
     let encoder = JSONEncoder()
