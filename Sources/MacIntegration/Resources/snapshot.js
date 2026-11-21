@@ -118,10 +118,18 @@ function run(args) {
         const image = $.NSImage.alloc.initWithData(data);
         if (!image || !image.isValid) throw Error("无法渲染建议素材");
         const count = slide.shapes.length;
+        let vectorURL = null;
+        if (!asset.referenceID) {
+            const path = args[1] + "-" + ObjC.unwrap($.NSUUID.UUID.UUIDString) + ".svg";
+            vectorURL = $.NSURL.fileURLWithPath($(path));
+            if (!data.writeToURLAtomically(vectorURL, true)) throw Error("无法准备矢量素材");
+        }
         board.clearContents;
         let version = board.changeCount;
         try {
-            if (!board.setDataForType(image.TIFFRepresentation, $("public.tiff"))) throw Error("无法准备素材");
+            const prepared = vectorURL ? board.writeObjects($([vectorURL]))
+                : board.setDataForType(image.TIFFRepresentation, $("public.tiff"));
+            if (!prepared) throw Error("无法准备素材");
             version = board.changeCount;
             app.activeWindow.view.pasteObject();
             if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增图片");
@@ -129,6 +137,7 @@ function run(args) {
             inserted.push(shape);
             write(shape, asset.placement, 0, null);
         } finally {
+            if (vectorURL) $.NSFileManager.defaultManager.removeItemAtURLError(vectorURL, null);
             if (board.changeCount === version) {
                 board.clearContents;
                 if (saved.length) board.writeObjects($(saved));
