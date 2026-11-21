@@ -12,6 +12,10 @@ import Carbon
 _ = NSApplication.shared
 let savedPreference = UserDefaults.standard.object(forKey: "acceptWithTab")
 defer { UserDefaults.standard.set(savedPreference, forKey: "acceptWithTab") }
+UserDefaults.standard.removeObject(forKey: "acceptWithTab")
+precondition(AcceptShortcut.allowsTab(editingText: false), "First-run object previews should offer Tab")
+precondition(!AcceptShortcut.allowsTab(editingText: true))
+precondition(!AcceptShortcut.allowsTab(editingText: nil))
 for enabled in [true, false] {
     AcceptShortcut.prefersTab = enabled
     precondition(AcceptShortcut.allowsTab(editingText: false) == enabled)
