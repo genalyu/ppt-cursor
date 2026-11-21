@@ -65,6 +65,12 @@ for flags in [UInt32(0), UInt32(kEventHotKeyExclusive)] {
 }
 precondition(shortcut.registerPreferred(useTab: true) == "Tab")
 shortcut.disable()
+var replacementCount = 0
+let replacement = AcceptShortcut { replacementCount += 1 }
+precondition(replacement.enable(useTab: true))
+send(id: 1)
+precondition(replacementCount == 0, "A previous preview instance accepted a new suggestion")
+replacement.disable()
 print("Carbon registration, routing, filtering and release passed")
 SWIFT
 swiftc Sources/CursorApp/AcceptShortcut.swift "$tmp/main.swift" -o "$tmp/check"

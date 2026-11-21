@@ -11,6 +11,7 @@ final class AcceptShortcut {
     }
 
     private var key: EventHotKeyRef?
+    private static var nextRegistrationID: UInt32 = 0
     private var registrationID: UInt32 = 0
     private var handler: EventHandlerRef?
     let accept: () -> Void
@@ -40,7 +41,8 @@ final class AcceptShortcut {
     func enable(useTab: Bool = false) -> Bool {
         guard handler != nil else { return false }
         if key != nil { return true }
-        registrationID &+= 1
+        Self.nextRegistrationID &+= 1
+        registrationID = Self.nextRegistrationID
         return RegisterEventHotKey(UInt32(useTab ? kVK_Tab : kVK_Return), useTab ? 0 : UInt32(optionKey | cmdKey),
                                    EventHotKeyID(signature: 0x50505443, id: registrationID),
                                    GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &key) == noErr
