@@ -21,7 +21,8 @@ func predict(arguments: [String]) throws {
         let state = try JSONDecoder().decode(SlideSnapshot.self, from: Data(contentsOf: URL(fileURLWithPath: file)))
         context = history.observe(state)
     }
-    guard let context = context ?? (images.isEmpty ? nil : history.currentContext) else { throw CLIError.noChange }
+    guard var context = context ?? (images.isEmpty ? nil : history.currentContext) else { throw CLIError.noChange }
+    context.imagesJustImported = files.count == 1 && !images.isEmpty
     guard let executable = CodexInstallation.executable(preferShellPath: true) else { throw CLIError.codexMissing }
     let prediction = try Predictor(executable: executable).predict(context, images: images)
     let encoder = JSONEncoder()

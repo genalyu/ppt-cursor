@@ -34,6 +34,7 @@ public struct SlideSnapshot: Codable, Equatable, Sendable {
 public struct EditContext: Encodable, Sendable {
     public let previous: [SlideSnapshot]
     public let current: SlideSnapshot
+    public var imagesJustImported = false
     public var recentlyDismissed: [String] = []
 
     private struct Transition: Encodable {
@@ -61,7 +62,7 @@ public struct EditContext: Encodable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case current, transitions, recentlyDismissed }
+    private enum CodingKeys: String, CodingKey { case current, transitions, recentlyDismissed, imagesJustImported }
 
     private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs, textSelection }
 
@@ -73,6 +74,7 @@ public struct EditContext: Encodable, Sendable {
         try page.encode(current.objects, forKey: .objects)
         try page.encodeIfPresent(current.selectedIDs, forKey: .selectedIDs)
         try page.encodeIfPresent(current.textSelection, forKey: .textSelection)
+        if imagesJustImported { try output.encode(true, forKey: .imagesJustImported) }
         if !recentlyDismissed.isEmpty { try output.encode(recentlyDismissed, forKey: .recentlyDismissed) }
         let states = previous + [current]
         let transitions = zip(states, states.dropFirst()).map { Transition(from: $0, to: $1) }

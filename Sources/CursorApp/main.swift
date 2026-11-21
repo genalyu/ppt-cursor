@@ -410,7 +410,8 @@ final class Controller: NSObject, NSApplicationDelegate {
                     }
                     let edit = self.history.observe(state)
                     if previous != state || self.predictWithImportedImages {
-                        let context = self.predictWithImportedImages ? self.history.currentContext : edit
+                        var context = self.predictWithImportedImages ? self.history.currentContext : edit
+                        context?.imagesJustImported = self.predictWithImportedImages
                         self.predictWithImportedImages = false
                         self.invalidate()
                         self.waiting = context
