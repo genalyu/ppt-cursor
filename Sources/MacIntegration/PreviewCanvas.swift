@@ -87,12 +87,19 @@ public final class PreviewCanvas: NSView {
             rotation.rotate(byDegrees: edit.rotation)
             rotation.translateX(by: -rect.midX, yBy: -rect.midY)
             rotation.concat()
-            if let picture = picturePreviews[edit.id] {
+            if edit.text == nil, edit.fontSize == nil, let picture = picturePreviews[edit.id] {
                 picture.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.7, respectFlipped: true, hints: nil)
             } else {
+                let original = slide.objects.first { $0.id == edit.id }
+                let replacesText = edit.text.map { $0 != original?.text } ?? false
+                let changesSize = edit.fontSize.map { $0 != original?.fontSize } ?? false
+                if replacesText || changesSize {
+                    // Mask existing glyphs under the proposed text, including when clearing a box.
+                    NSColor.white.setFill()
+                    rect.fill()
+                }
                 NSColor.systemTeal.withAlphaComponent(0.19).setFill()
                 rect.fill()
-                let original = slide.objects.first { $0.id == edit.id }
                 drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
             }
             let outline = NSBezierPath(rect: rect)
