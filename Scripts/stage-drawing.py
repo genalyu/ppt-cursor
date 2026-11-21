@@ -3,9 +3,11 @@
 import argparse
 import os
 from pathlib import Path
+import posixpath
 import re
 import tempfile
 from xml.dom import Node, minidom
+from xml.etree import ElementTree
 from zipfile import ZipFile
 
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -13,9 +15,29 @@ A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 XMLNS = "http://www.w3.org/2000/xmlns/"
 
 
+def slide_part(package, selector):
+    if re.fullmatch(r"ppt/slides/slide[1-9][0-9]*\.xml", selector):
+        return selector
+    if not re.fullmatch(r"[1-9][0-9]*", selector):
+        raise ValueError("Expected a live slide ID or a slide part name")
+    rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    pkg_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    presentation = ElementTree.fromstring(package.read("ppt/presentation.xml"))
+    entries = presentation.findall(f"{{{P}}}sldIdLst/{{{P}}}sldId")
+    matches = [entry for entry in entries if entry.get("id") == selector]
+    if len(matches) != 1:
+        raise ValueError("Slide ID does not uniquely identify a slide in this presentation")
+    rid = matches[0].attrib[f"{{{rel_ns}}}id"]
+    relations = ElementTree.fromstring(package.read("ppt/_rels/presentation.xml.rels"))
+    targets = [r.attrib["Target"] for r in relations.findall(f"{{{pkg_ns}}}Relationship")
+               if r.get("Id") == rid and r.get("Type") == rel_ns + "/slide"
+               and r.get("TargetMode", "Internal") == "Internal"]
+    if len(targets) != 1:
+        raise ValueError("Missing internal slide relationship")
+    return posixpath.normpath(posixpath.join("ppt", targets[0])).lstrip("/")
+
+
 def stage(source, part, fragment, output, replace_id=None):
-    if not re.fullmatch(r"ppt/slides/slide[1-9][0-9]*\.xml", part):
-        raise ValueError("Expected a slide part name")
     raw = fragment.read_bytes()
     if len(raw) > 200_000 or b"<!" in raw or b"<?" in raw:
         raise ValueError("Expected a self-contained UTF-8 DrawingML fragment")
@@ -36,7 +58,10 @@ def stage(source, part, fragment, output, replace_id=None):
     with tempfile.TemporaryDirectory(dir=output.parent) as directory:
         candidate = Path(directory) / "candidate.pptx"
         with ZipFile(source) as original, ZipFile(candidate, "w") as staged:
+            part = slide_part(original, part)
             slide = minidom.parseString(original.read(part))
+            if (slide.documentElement.namespaceURI, slide.documentElement.localName) != (P, "sld"):
+                raise ValueError("Relationship target is not a slide")
             tree, = slide.getElementsByTagNameNS(P, "spTree")
             ids = [int(node.getAttribute("id")) for node in slide.getElementsByTagNameNS(P, "cNvPr")]
             shape.setAttribute("xmlns:p", P)
@@ -68,7 +93,7 @@ def stage(source, part, fragment, output, replace_id=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
-    parser.add_argument("slide_part")
+    parser.add_argument("slide_part", help="Live PowerPoint slideID or explicit PPTX slide part")
     parser.add_argument("fragment", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
