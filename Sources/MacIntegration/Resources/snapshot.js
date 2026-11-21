@@ -30,10 +30,25 @@ function snapshot() {
                 if (uniform) fontSize = size;
             }
         }
+        const kind = String(shape.shapeType());
+        let table;
+        if (kind === "shape type table") {
+            const rows = shape.numberOfRows(), columns = shape.numberOfColumns();
+            const visibleSample = [];
+            const cellsByRow = shape.tableObject.rows;
+            for (let r = 0; r < Math.min(rows, 8); r++) {
+                const cells = cellsByRow[r].cells, values = [];
+                for (let c = 0; c < Math.min(columns, 8); c++) {
+                    values.push(String(cells[c].shape.textFrame.textRange.content()).slice(0, 512));
+                }
+                visibleSample.push(values);
+            }
+            table = {rows, columns, visibleSample};
+        }
         return {
-            fontSize,
+            table, fontSize,
             id: JSON.stringify([name, occurrence]),
-            kind: String(shape.shapeType()),
+            kind,
             name,
             text: text,
             x: shape.leftPosition(), y: shape.top(),
