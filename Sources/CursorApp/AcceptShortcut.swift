@@ -22,10 +22,10 @@ final class AcceptShortcut {
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
-    func enable() -> Bool {
+    func enable(useTab: Bool = false) -> Bool {
         guard handler != nil else { return false }
         if key != nil { return true }
-        return RegisterEventHotKey(UInt32(kVK_Return), UInt32(optionKey | cmdKey),
+        return RegisterEventHotKey(UInt32(useTab ? kVK_Tab : kVK_Return), useTab ? 0 : UInt32(optionKey | cmdKey),
                                    EventHotKeyID(signature: 0x50505443, id: 1),
                                    GetApplicationEventTarget(), 0, &key) == noErr
     }

@@ -33,6 +33,12 @@ precondition(count == 1, "Registered hotkey did not dispatch")
 shortcut.disable()
 send(id: 1)
 precondition(count == 1, "Late hotkey dispatched after release")
+precondition(shortcut.enable(useTab: true), "Tab could not be registered")
+send(id: 1)
+precondition(count == 2)
+shortcut.disable()
+send(id: 1)
+precondition(count == 2, "Released Tab still dispatched")
 print("Carbon registration, routing, filtering and release passed")
 SWIFT
 swiftc Sources/CursorApp/AcceptShortcut.swift "$tmp/main.swift" -o "$tmp/check"

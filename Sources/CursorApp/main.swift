@@ -42,6 +42,9 @@ final class Controller: NSObject, NSApplicationDelegate {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
+        let tabOption = menu.addItem(withTitle: "用 Tab 采纳可见建议", action: #selector(toggleTab(_:)), keyEquivalent: "")
+        tabOption.target = self
+        tabOption.state = useTab ? .on : .off
         toggle.target = self
         menu.insertItem(toggle, at: 3)
         let settings = menu.insertItem(withTitle: "打开控制窗口…", action: #selector(openSetup), keyEquivalent: "", at: 1)
@@ -99,6 +102,18 @@ final class Controller: NSObject, NSApplicationDelegate {
         overlay?.orderOut(nil)
         overlay = nil
     }
+    private var useTab: Bool { UserDefaults.standard.bool(forKey: "acceptWithTab") }
+
+    @objc private func toggleTab(_ sender: NSMenuItem) {
+        let enabled = !useTab
+        UserDefaults.standard.set(enabled, forKey: "acceptWithTab")
+        sender.state = enabled ? .on : .off
+        if let (state, proposal) = pending {
+            invalidate()
+            if frontmost { show(state, proposal) } else { hiddenSuggestion = (state, proposal) }
+        }
+    }
+
     @objc private func dismiss() { invalidate(); message("已忽略，继续编辑即可") }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
@@ -321,12 +336,12 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         overlay = panel
         pending = (state, prediction)
-        let shortcutAvailable = shortcut.enable()
-        let controls = SuggestionPanel(summary: prediction.summary, shortcutAvailable: shortcutAvailable,
+        let shortcutLabel = shortcut.enable(useTab: useTab) ? (useTab ? "Tab" : "⌥⌘↩") : nil
+        let controls = SuggestionPanel(summary: prediction.summary, shortcutLabel: shortcutLabel,
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
         suggestionPanel = controls
         controls.orderFrontRegardless()
-        message(prediction.summary + (shortcutAvailable ? " · ⌥⌘↩ 采纳" : " · 从菜单采纳"))
+        message(prediction.summary + (shortcutLabel.map { " · " + $0 + " 采纳" } ?? " · 点击采纳"))
     }
 
     @objc private func accept() {

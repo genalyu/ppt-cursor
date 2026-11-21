@@ -2,7 +2,7 @@ import AppKit
 
 /// A nonactivating control at the page edge leaves the entire slide preview click-through.
 final class SuggestionPanel: NSPanel {
-    init(summary: String, shortcutAvailable: Bool, owner: NSObject, accept: Selector, dismiss: Selector,
+    init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
          page: NSRect) {
         let width = min(420, max(240, page.width - 16))
         let size = NSSize(width: width, height: 84)
@@ -24,7 +24,7 @@ final class SuggestionPanel: NSPanel {
         label.maximumNumberOfLines = 2
         label.lineBreakMode = .byTruncatingTail
         label.toolTip = summary
-        let confirm = NSButton(title: shortcutAvailable ? "采纳  ⌥⌘↩" : "采纳", target: owner, action: accept)
+        let confirm = NSButton(title: shortcutLabel.map { "采纳  " + $0 } ?? "采纳", target: owner, action: accept)
         let skip = NSButton(title: "忽略", target: owner, action: dismiss)
         let buttons = NSStackView(views: [confirm, skip])
         for view in [label as NSView, buttons] {
