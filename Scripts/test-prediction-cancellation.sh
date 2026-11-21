@@ -32,7 +32,18 @@ precondition(process.isRunning)
 running.cancel()
 precondition(finished.wait(timeout: .now() + 5) == .success)
 precondition(!process.isRunning)
-print("Cancellation before and during inference passed")
+let stuck = Process()
+stuck.executableURL = URL(fileURLWithPath: "/bin/sh")
+stuck.arguments = ["-c", "trap '' TERM; exec /bin/sleep 30"]
+let start = Date()
+do { try PredictionRun().execute(stuck, timeout: 0.3); fatalError("Hung inference succeeded") }
+catch is InferenceTimeout {}
+precondition(!stuck.isRunning && Date().timeIntervalSince(start) < 5)
+let next = Process()
+next.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+try PredictionRun().execute(next)
+precondition(next.terminationStatus == 0)
+print("Cancellation, unresponsive child timeout and subsequent execution passed")
 SWIFT
 swiftc Sources/CursorCore/PredictionRun.swift "$tmp/main.swift" -o "$tmp/check"
 "$tmp/check"
