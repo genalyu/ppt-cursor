@@ -40,3 +40,9 @@ MIT License
 ### 提供已有图片
 
 从菜单中选择「选择本次编辑的图片素材…」即可载入 PNG、JPEG、HEIC 或 TIFF，可一次选择多张。预测时，模型会看到所选素材的文件名和缩略图；模型选择某张图片后，画布预览和最终插入均使用同一份本地像素数据。应用保留方向和透明度，长边最多 3072 像素。可在菜单中随时清空素材。
+
+带素材的预测也可通过命令行复现。每个 `--image` 对应一张图片，后续 JSON 文件按编辑时间排序。
+
+```sh
+swift run ppt-inspect predict --image swatch.png before.json current.json
+```
