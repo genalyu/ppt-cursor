@@ -3,7 +3,8 @@ import CursorCore
 
 /// The same view renders to the transparent panel and to a bitmap for regression inspection.
 public final class PreviewCanvas: NSView {
-    let images: [ReferenceImage]
+    private let artworkImages: [NSImage?]
+    public var canPreviewAllArtwork: Bool { artworkImages.allSatisfy { $0 != nil } }
     private let picturePreviews: [String: NSImage]
     let slide: SlideSnapshot
     let suggestion: Prediction
@@ -11,7 +12,18 @@ public final class PreviewCanvas: NSView {
 
     public init(slide: SlideSnapshot, suggestion: Prediction, frame: NSRect, diagnosticBackground: Bool, images: [ReferenceImage] = [], pageImage: CGImage? = nil) {
         self.picturePreviews = Self.extractPictures(slide: slide, suggestion: suggestion, from: pageImage)
-        self.images = images
+        self.artworkImages = suggestion.artwork.map { asset in
+            let bytes: Data
+            if let id = asset.referenceID {
+                guard let reference = images.first(where: { $0.id == id }) else { return nil }
+                bytes = reference.png
+            } else {
+                bytes = Data(asset.svg.utf8)
+            }
+            guard let image = NSImage(data: bytes), image.isValid,
+                  image.size.width > 0, image.size.height > 0 else { return nil }
+            return image
+        }
         self.slide = slide
         self.suggestion = suggestion
         self.diagnosticBackground = diagnosticBackground
@@ -109,10 +121,9 @@ public final class PreviewCanvas: NSView {
             outline.stroke()
             NSGraphicsContext.restoreGraphicsState()
         }
-        for asset in suggestion.artwork {
+        for (asset, image) in zip(suggestion.artwork, artworkImages) {
             let p = asset.placement
-            let bytes = asset.referenceID.flatMap { id in images.first { $0.id == id }?.png } ?? Data(asset.svg.utf8)
-            NSImage(data: bytes)?.draw(in: NSRect(x: p.x, y: p.y, width: p.width, height: p.height),
+            image?.draw(in: NSRect(x: p.x, y: p.y, width: p.width, height: p.height),
                                                       from: .zero, operation: .sourceOver, fraction: 0.85,
                                                       respectFlipped: true, hints: nil)
         }

@@ -480,7 +480,13 @@ final class Controller: NSObject, NSApplicationDelegate {
         let localPage = needsAppearance ? calibratedWindow.flatMap {
             PageLocator.pageImage(in: $0, expected: frame, aspect: state.width / state.height)
         } : nil
-        panel.contentView = PreviewCanvas(slide: state, suggestion: prediction, frame: NSRect(origin: .zero, size: frame.size), diagnosticBackground: false, images: images, pageImage: localPage)
+        let canvas = PreviewCanvas(slide: state, suggestion: prediction, frame: NSRect(origin: .zero, size: frame.size), diagnosticBackground: false, images: images, pageImage: localPage)
+        guard canvas.canPreviewAllArtwork else {
+            failedContext = history.currentContext
+            message("建议中的图片无法预览，可从菜单重试上次预测")
+            return
+        }
+        panel.contentView = canvas
         panel.orderFrontRegardless()
         overlay = panel
         pending = (state, prediction)
