@@ -427,8 +427,9 @@ def watch_preview(source, destination, session_canvas=None, references=()):
                     continue
                 if candidate.exists():
                     confirmed = capture()
-                    if confirmed == "deferred":
-                        last_prediction = None
+                    while confirmed == "deferred":
+                        time.sleep(0.5)
+                        confirmed = capture()
                     if confirmed == state:
                         (candidate / "baseline.json").write_text(json.dumps(state))
                         if session_canvas:
