@@ -9,7 +9,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
     private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), openNativeSession: #selector(openNativeSession), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel))
     private var nativeProcess: Process?
-    private var nativeOutput: Pipe?
+    private var nativeDirectory: URL?
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?
@@ -108,28 +108,46 @@ final class Controller: NSObject, NSApplicationDelegate {
             let output = Pipe()
             process.standardOutput = output
             process.standardError = output
-            output.fileHandleForReading.readabilityHandler = { [weak self, weak process] handle in
-                let data = handle.availableData
-                guard !data.isEmpty else { handle.readabilityHandler = nil; return }
-                guard let line = String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).last else { return }
-                DispatchQueue.main.async {
-                    guard let process, self?.nativeProcess === process else { return }
-                    self?.message(String(line.prefix(240)))
-                }
-            }
-            process.terminationHandler = { [weak self] finished in
-                DispatchQueue.main.async {
-                    try? FileManager.default.removeItem(at: session)
-                    guard self?.nativeProcess === finished else { return }
-                    self?.nativeProcess = nil
-                    self?.nativeOutput = nil
-                    if finished.terminationStatus == 0 { self?.message("开放式预测已结束") }
-                }
-            }
             try process.run()
             if monitoring || locationRequest != nil { toggleMonitoring() }
             nativeProcess = process
-            nativeOutput = output
+            nativeDirectory = session
+            DispatchQueue.global(qos: .utility).async {
+                var pending = Data()
+                var lastLine = ""
+                func report(_ data: Data) {
+                    let line = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !line.isEmpty else { return }
+                    lastLine = String(line.prefix(240))
+                    let status = lastLine
+                    DispatchQueue.main.async {
+                        guard self.nativeProcess === process else { return }
+                        self.message(status)
+                    }
+                }
+                let reader = output.fileHandleForReading
+                while true {
+                    let chunk = reader.availableData
+                    if chunk.isEmpty { break }
+                    pending.append(chunk)
+                    while let newline = pending.firstIndex(of: 10) {
+                        report(Data(pending[..<newline]))
+                        pending.removeSubrange(...newline)
+                    }
+                    if pending.count > 8192 { pending = Data(pending.suffix(8192)) }
+                }
+                report(pending)
+                process.waitUntilExit()
+                let finalStatus = process.terminationStatus == 0 ? "开放式预测已结束" :
+                    "开放式预测已退出（" + String(process.terminationStatus) + "）" + lastLine
+                try? FileManager.default.removeItem(at: session)
+                DispatchQueue.main.async {
+                    guard self.nativeProcess === process else { return }
+                    self.nativeProcess = nil
+                    self.nativeDirectory = nil
+                    self.message(finalStatus)
+                }
+            }
             setup.orderOut(nil)
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
             message("正在启动开放式预测…")
@@ -144,7 +162,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         guard let process = nativeProcess else { return }
         NativeSessionLauncher.stop(process)
         nativeProcess = nil
-        nativeOutput = nil
+        if let nativeDirectory { try? FileManager.default.removeItem(at: nativeDirectory) }
+        nativeDirectory = nil
         message("开放式预测已停止")
     }
 
