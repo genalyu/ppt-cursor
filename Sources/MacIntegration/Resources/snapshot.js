@@ -36,12 +36,21 @@ function snapshot() {
             const rows = shape.numberOfRows(), columns = shape.numberOfColumns();
             const visibleSample = [];
             const cellsByRow = shape.tableObject.rows;
+            let previousRow = [];
             for (let r = 0; r < Math.min(rows, 8); r++) {
-                const cells = cellsByRow[r].cells, values = [];
+                const cells = cellsByRow[r].cells, values = [], row = [];
                 for (let c = 0; c < Math.min(columns, 8); c++) {
-                    values.push(String(cells[c].shape.textFrame.textRange.content()).slice(0, 512));
+                    const cell = cells[c].shape;
+                    const value = String(cell.textFrame.textRange.content()).slice(0, 512);
+                    // PowerPoint returns the same text and origin at every coordinate of a merged cell.
+                    const neighbors = [row[c - 1], previousRow[c]];
+                    const merged = value !== "" && neighbors.some(other => other && other.value === value &&
+                        other.cell.leftPosition() === cell.leftPosition() && other.cell.top() === cell.top());
+                    row.push({value, cell});
+                    values.push(merged ? null : value);
                 }
                 visibleSample.push(values);
+                previousRow = row;
             }
             table = {rows, columns, visibleSample};
         }

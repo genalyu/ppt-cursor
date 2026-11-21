@@ -2,7 +2,7 @@ import Foundation
 
 public struct SlideTable: Codable, Equatable, Sendable {
     public let rows, columns: Int
-    public let visibleSample: [[String]]
+    public let visibleSample: [[String?]]
 }
 
 /// All coordinates are in PowerPoint slide points, independent of zoom and display scale.
