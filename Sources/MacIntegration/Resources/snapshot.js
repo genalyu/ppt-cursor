@@ -55,12 +55,29 @@ function run(args) {
         return {shape: slide.shapes[index], original: baseline.objects[index], edit};
     });
     function write(shape, p, rotation, text) {
-        if (shape.width() !== p.width) shape.width = p.width;
-        if (shape.height() !== p.height) shape.height = p.height;
-        if (shape.rotation() !== rotation) shape.rotation = rotation;
-        if (shape.leftPosition() !== p.x) shape.leftPosition = p.x;
-        if (shape.top() !== p.y) shape.top = p.y;
-        if (text != null && String(shape.textFrame.textRange.content()) !== text) shape.textFrame.textRange.content = text;
+        // PowerPoint couples both dimensions when aspect locking is enabled. Write the
+        // previewed geometry as a pair, then restore the editor's original lock setting.
+        const close = (a, b) => Math.abs(a - b) <= 0.02;
+        const resize = !close(shape.width(), p.width) || !close(shape.height(), p.height);
+        const locked = resize && shape.lockAspectRatio() === true;
+        if (locked) shape.lockAspectRatio = false;
+        try {
+            if (text != null && String(shape.textFrame.textRange.content()) !== text) {
+                shape.textFrame.textRange.content = text;
+            }
+            if (!close(shape.width(), p.width)) shape.width = p.width;
+            if (!close(shape.height(), p.height)) shape.height = p.height;
+            if (!close(shape.rotation(), rotation)) shape.rotation = rotation;
+            if (!close(shape.leftPosition(), p.x)) shape.leftPosition = p.x;
+            if (!close(shape.top(), p.y)) shape.top = p.y;
+        } finally {
+            if (locked) shape.lockAspectRatio = true;
+        }
+        const angleDifference = ((shape.rotation() - rotation) % 360 + 540) % 360 - 180;
+        if (!close(shape.width(), p.width) || !close(shape.height(), p.height) ||
+            !close(shape.leftPosition(), p.x) || !close(shape.top(), p.y) || !close(angleDifference, 0)) {
+            throw Error("PowerPoint 返回的图形位置或尺寸与预览不符");
+        }
     }
     // Paste through PowerPoint's native view; keep every existing pasteboard item/type.
     // Only restore our temporary pasteboard if another app hasn't copied something meanwhile.
