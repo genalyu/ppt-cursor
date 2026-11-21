@@ -23,6 +23,11 @@ final class AcceptShortcut {
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
+    func registerPreferred(useTab: Bool) -> String? {
+        if useTab && enable(useTab: true) { return "Tab" }
+        return enable() ? "⌥⌘↩" : nil
+    }
+
     func enable(useTab: Bool = false) -> Bool {
         guard handler != nil else { return false }
         if key != nil { return true }

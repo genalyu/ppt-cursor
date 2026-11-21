@@ -499,7 +499,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             self?.hideDuringCanvasDrag()
         }
         let registerTab = useTab && state.editingText == false
-        let shortcutLabel = shortcut.enable(useTab: registerTab) ? (registerTab ? "Tab" : "⌥⌘↩") : nil
+        let shortcutLabel = shortcut.registerPreferred(useTab: registerTab)
         let controls = SuggestionPanel(summary: prediction.summary, shortcutLabel: shortcutLabel,
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
         suggestionPanel = controls
