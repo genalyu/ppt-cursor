@@ -26,7 +26,7 @@ public enum PowerPointBridge {
     }
 
     private static func run(_ arguments: [String]) throws -> SlideSnapshot? {
-        let script = Bundle.module.url(forResource: "snapshot", withExtension: "js")!
+        let script = ResourcesBundle.value.url(forResource: "snapshot", withExtension: "js")!
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-l", "JavaScript", script.path] + arguments

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>PPTCursor</string>
+<key>CFBundleIdentifier</key><string>io.github.genalyu.pptcursor</string>
+<key>CFBundleDisplayName</key><string>PPT Cursor</string>
+<key>CFBundleName</key><string>PPT Cursor</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>LSUIElement</key><true/>
+<key>NSAppleEventsUsageDescription</key><string>PPT Cursor 需要读取当前幻灯片的编辑变化，并将你采纳的建议写入 PowerPoint。</string>
+</dict></plist>

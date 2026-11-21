@@ -52,8 +52,8 @@ public struct Predictor: Sendable {
         try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? fm.removeItem(at: dir) }
         let result = dir.appendingPathComponent("response.json")
-        let prompt = try String(contentsOf: Bundle.module.url(forResource: "predict", withExtension: "txt")!)
-        let schema = Bundle.module.url(forResource: "prediction", withExtension: "json")!
+        let prompt = try String(contentsOf: ResourcesBundle.value.url(forResource: "predict", withExtension: "txt")!)
+        let schema = ResourcesBundle.value.url(forResource: "prediction", withExtension: "json")!
         let process = Process()
         process.executableURL = executable
         process.currentDirectoryURL = dir

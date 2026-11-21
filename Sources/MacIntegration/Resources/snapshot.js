@@ -46,7 +46,7 @@ function run(args) {
     for (const object of request.baseline.objects) { if (object.text === undefined) object.text = null; }
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
     const proposal = request.proposal;
-    if (proposal.artwork.length) throw Error("Artwork insertion unavailable in this bridge");
+
     const app = Application("com.microsoft.Powerpoint");
     const slide = app.activePresentation.slides[app.activeWindow.view.slide.slideIndex() - 1];
     const changes = proposal.edits.map(edit => {
@@ -62,14 +62,56 @@ function run(args) {
         if (shape.top() !== p.y) shape.top = p.y;
         if (text != null && String(shape.textFrame.textRange.content()) !== text) shape.textFrame.textRange.content = text;
     }
+    // Paste through PowerPoint's native view; keep every existing pasteboard item/type.
+    // Only restore our temporary pasteboard if another app hasn't copied something meanwhile.
+    function pasteArtwork(asset) {
+        ObjC.import("AppKit");
+        const board = $.NSPasteboard.generalPasteboard;
+        const saved = [];
+        const existing = board.pasteboardItems;
+        for (let i = 0; i < existing.count; i++) {
+            const source = existing.objectAtIndex(i), copy = $.NSPasteboardItem.alloc.init;
+            const types = source.types;
+            for (let t = 0; t < types.count; t++) {
+                const type = types.objectAtIndex(t), data = source.dataForType(type);
+                if (!data || !copy.setDataForType(data, type)) throw Error("无法保存原剪贴板内容");
+            }
+            saved.push(copy);
+        }
+        const data = $(asset.svg).dataUsingEncoding($.NSUTF8StringEncoding);
+        const image = $.NSImage.alloc.initWithData(data);
+        if (!image || !image.isValid) throw Error("无法渲染建议素材");
+        const count = slide.shapes.length;
+        board.clearContents;
+        let version = board.changeCount;
+        try {
+            if (!board.setDataForType(image.TIFFRepresentation, $("public.tiff"))) throw Error("无法准备素材");
+            version = board.changeCount;
+            app.pasteObject(app.activeWindow.view);
+            if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增图片");
+            const shape = slide.shapes[count];
+            inserted.push(shape);
+            write(shape, asset.placement, 0, null);
+        } finally {
+            if (board.changeCount === version) {
+                board.clearContents;
+                if (saved.length) board.writeObjects($(saved));
+            }
+        }
+    }
+    const inserted = [];
     const started = [];
     try {
         for (const change of changes) {
             started.push(change);
             write(change.shape, change.edit.placement, change.edit.rotation, change.edit.text);
         }
+        for (const asset of proposal.artwork) pasteArtwork(asset);
     } catch (error) {
         const failed = [];
+        for (const shape of inserted.reverse()) {
+            try { app.delete(shape); } catch (_) { failed.push("新增素材"); }
+        }
         for (const change of started.reverse()) {
             try { write(change.shape, change.original, change.original.rotation, change.original.text); }
             catch (_) { failed.push(change.original.name); }
