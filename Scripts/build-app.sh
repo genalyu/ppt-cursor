@@ -10,6 +10,11 @@ cp Packaging/Info.plist "$app/Contents/"
 for module in CursorCore MacIntegration; do
     ditto "$bin/PPTCursor_${module}.bundle" "$app/Contents/Resources/PPTCursor_${module}.bundle"
 done
-codesign --force --sign - "$app"
+if [ -n "${PPT_CURSOR_SIGN_IDENTITY:-}" ]; then
+    codesign --force --options runtime --timestamp --entitlements Packaging/Release.entitlements \
+        --sign "$PPT_CURSOR_SIGN_IDENTITY" "$app"
+else
+    codesign --force --sign - "$app"
+fi
 codesign --verify --deep --strict "$app"
 echo "$PWD/$app"
