@@ -44,12 +44,14 @@ enum StagedPreview {
         struct Target: Decodable { let operation: String }
         let target = try? JSONDecoder().decode(Target.self, from: Data(contentsOf: directory.appendingPathComponent("target.json")))
         let direct = proposal != nil || target?.operation == "insert"
+        var displayedWindow = window
+        var displayedPage = frame
         var submitted = false
         weak var feedbackPanel: SuggestionPanel?
         weak var activeShortcut: AcceptShortcut?
         func matchesPage(_ current: PowerPointWindow) -> Bool {
-            current.id == window.id && current.frame == window.frame &&
-                PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == frame
+            current.id == window.id && current.frame == displayedWindow.frame &&
+                PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == displayedPage
         }
         let actions = StagedActions {
             guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
@@ -149,44 +151,67 @@ enum StagedPreview {
         let workspaceEvents = NSWorkspace.shared.notificationCenter
         var hidden = false
         var focusGeneration = 0
-        func suspendPreview() {
+        func suspendPreview(_ reason: String) {
             guard !submitted, !hidden else { return }
             hidden = true
             focusGeneration += 1
             shortcut.disable()
             panel.orderOut(nil)
             controls.orderOut(nil)
-            trace("suspended on application switch")
+            trace("suspended: " + reason)
         }
         let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                        object: nil, queue: .main) { _ in
             guard !submitted, !powerpoint.isActive else { return }
-            suspendPreview()
+            suspendPreview("application switch")
         }
         defer { workspaceEvents.removeObserver(focusObserver) }
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
             guard !submitted else { return }
-            guard powerpoint.isActive else { suspendPreview(); return }
-            guard (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
-                  let current = PowerPointWindow.front(of: powerpoint),
-                  current.id == window.id, current.frame == window.frame else {
-                trace("dismissed on foreground, pointer or window change")
+            guard powerpoint.isActive else { suspendPreview("application switch"); return }
+            guard NSEvent.pressedMouseButtons == 0 || (!hidden && controls.frame.contains(NSEvent.mouseLocation)) else {
+                suspendPreview("mouse down")
+                return
+            }
+            guard let current = PowerPointWindow.front(of: powerpoint) else {
+                suspendPreview("window unavailable")
+                return
+            }
+            guard current.id == window.id else {
+                trace("dismissed on window switch")
                 app.terminate(nil)
                 return
             }
+            if current.frame != displayedWindow.frame { suspendPreview("window moved or resized") }
             guard !reading else { return }
             let generation = focusGeneration
             reading = true
             DispatchQueue.global(qos: .userInitiated).async {
-                let valid = matchesPage(current) && (try? PowerPointBridge.capture()) == baseline
+                let page = PageLocator.locate(in: current, aspect: baseline.width / baseline.height)
+                let valid = (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
-                    guard !submitted, powerpoint.isActive, generation == focusGeneration else { return }
-                    if !valid {
-                        trace("dismissed on page or selection change")
+                    guard !submitted, powerpoint.isActive, generation == focusGeneration,
+                          let latest = PowerPointWindow.front(of: powerpoint),
+                          latest.id == current.id, latest.frame == current.frame else { return }
+                    guard valid else {
+                        trace("dismissed on slide or selection change")
                         app.terminate(nil)
-                    } else if hidden {
+                        return
+                    }
+                    guard let page else {
+                        suspendPreview("page unavailable")
+                        return
+                    }
+                    if page != displayedPage || current.frame != displayedWindow.frame {
+                        panel.setFrame(page, display: true)
+                        controls.position(at: page)
+                        displayedPage = page
+                        displayedWindow = current
+                    }
+                    if hidden {
+                        guard NSEvent.pressedMouseButtons == 0 else { return }
                         hidden = false
                         if direct {
                             let label = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
