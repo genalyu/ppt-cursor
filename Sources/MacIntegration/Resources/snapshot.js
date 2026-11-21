@@ -9,14 +9,19 @@ function snapshot() {
     const slide = presentation.slides[index - 1];
     const shapes = slide.shapes;
     const page = presentation.pageSetup;
+    const nameCounts = new Map();
     const objects = Array.from({length: shapes.length}, (_, index) => {
         const shape = shapes[index];
+        const name = String(shape.name());
+        // Unrelated insertions and layer moves must not change this object's history key.
+        const occurrence = (nameCounts.get(name) || 0) + 1;
+        nameCounts.set(name, occurrence);
         let text = null;
         if (shape.hasTextFrame()) text = String(shape.textFrame.textRange.content());
         return {
-            id: String(shape.name()) + "#" + index,
+            id: JSON.stringify([name, occurrence]),
             kind: String(shape.shapeType()),
-            name: String(shape.name()),
+            name,
             text: text,
             x: shape.leftPosition(), y: shape.top(),
             width: shape.width(), height: shape.height(), rotation: shape.rotation()
