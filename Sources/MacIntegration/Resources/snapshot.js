@@ -73,7 +73,7 @@ function snapshot() {
     const selectedIDs = [];
     const selection = powerpoint.activeWindow.selection;
     const selectionType = selection.selectionType();
-    if (selectionType === "selection type shapes") {
+    if (selectionType === "selection type shapes" || selectionType === "selection type text") {
         const selected = selection.shapeRange.shapes;
         for (let i = 0; i < selected.length; i++) {
             const item = selected[i];
