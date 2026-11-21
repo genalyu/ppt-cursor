@@ -121,8 +121,8 @@ def stage(source, part, fragment, output, replace_id=None):
                 "shapeID": int(identity.getAttribute("id")), "name": identity.getAttribute("name")}
 
 
-def geometry_acceptance(tree, replace_id, drawing, current, summary):
-    """Use the live bridge only when geometry completely explains the rendered edit."""
+def native_acceptance(tree, replace_id, drawing, current, summary):
+    """Use the live bridge only when its properties completely explain the rendered edit."""
     if replace_id is None:
         return None
     source = next((s for s in tree.childNodes if s.namespaceURI == P and s.localName == "sp"
@@ -153,10 +153,28 @@ def geometry_acceptance(tree, replace_id, drawing, current, summary):
     def signature(node):
         return (node.tag, node.attrib, node.text if node.tag == f"{{{A}}}t" else (node.text or "").strip(),
                 [signature(child) for child in node])
+    matches = [obj for obj in current["objects"] if native_shape_id(tree, obj["id"]) == replace_id]
+    if len(matches) != 1:
+        return None
+    target = matches[0]
+    edit = {"id": target["id"], "rotation": angle, "placement": placement}
+    # Whole-range assignment preserves a single run. Mixed runs and paragraph breaks
+    # need a richer write operation to retain their formatting.
+    body_path = f"{{{P}}}txBody/{{{A}}}p"
+    old_paragraphs, new_paragraphs = before.findall(body_path), after.findall(body_path)
+    if len(old_paragraphs) == len(new_paragraphs) == 1:
+        old_p, new_p = old_paragraphs[0], new_paragraphs[0]
+        run_path = f"{{{A}}}r/{{{A}}}t"
+        old_runs, new_runs = old_p.findall(run_path), new_p.findall(run_path)
+        if len(old_runs) == len(new_runs) == 1:
+            old_text, new_text = old_runs[0].text or "", new_runs[0].text or ""
+            if old_text != new_text and target.get("text") == old_text and not any(c in new_text for c in "\r\n\v"):
+                if all(child.tag in (f"{{{A}}}r", f"{{{A}}}pPr", f"{{{A}}}endParaRPr") for child in old_p):
+                    edit["text"] = new_text
+                    new_runs[0].text = old_runs[0].text
     if signature(before) != signature(after):
         return None
-    key, = [obj["id"] for obj in current["objects"] if native_shape_id(tree, obj["id"]) == replace_id]
-    return {"summary": summary, "edits": [{"id": key, "rotation": angle, "placement": placement}], "artwork": []}
+    return {"summary": summary, "edits": [edit], "artwork": []}
 
 
 def write_overlay(before_file, after_file, output):
@@ -289,7 +307,7 @@ def predict_preview(source, selector, history_file, output):
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
         render_pair(baseline, selector, fragment, output, proposal["replaceID"])
-        acceptance = geometry_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
+        acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if acceptance:
             (output / "accept.json").write_text(json.dumps(acceptance))
         print(proposal["summary"])
