@@ -296,6 +296,22 @@ def sync_live_text(slide, shape, current_text):
     text_node.appendChild(slide.createTextNode(current_text))
 
 
+def sync_live_fill(shape, rgb):
+    if not isinstance(rgb, list) or len(rgb) != 3 or not all(type(v) is int and 0 <= v <= 255 for v in rgb):
+        return
+    # Only a direct shape fill is represented by the snapshot's solidFillRGB.
+    # Lines, text runs and theme transformations have separate color semantics.
+    node = shape
+    for namespace, tag in ((P, "spPr"), (A, "solidFill"), (A, "srgbClr")):
+        children = [child for child in node.childNodes if child.namespaceURI == namespace and child.localName == tag]
+        if len(children) != 1:
+            return
+        node = children[0]
+    if any(child.nodeType == Node.ELEMENT_NODE for child in node.childNodes):
+        return
+    node.setAttribute("val", bytes(rgb).hex().upper())
+
+
 def copy_live_geometry(source, selector, current, baseline):
     """Carry current top-level native shape and picture transforms into the temporary baseline."""
     with ZipFile(source) as original, ZipFile(baseline, "x") as staged:
@@ -309,6 +325,7 @@ def copy_live_geometry(source, selector, current, baseline):
             if shape is None:
                 continue
             sync_live_text(slide, shape, obj.get("text"))
+            sync_live_fill(shape, obj.get("solidFillRGB"))
             transforms = shape.getElementsByTagNameNS(A, "xfrm")
             if len(transforms) != 1:
                 continue
