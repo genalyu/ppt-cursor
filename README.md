@@ -53,7 +53,7 @@ open "dist/PPT Cursor.app"
 
 ## 试用原生图形预测
 
-Preview 19 已附带开放式预测脚本。将应用放入「应用程序」，在 PowerPoint 打开目标文稿，然后运行以下命令，将最后一个路径换成该文稿的实际路径。这个入口需要 Codex CLI、LibreOffice、Poppler 的 `pdftoppm` 和安装了 Pillow 的 Python 3。
+Preview 20 可从菜单栏选择「在终端启动开放式预测…」，再选择已经打开的本地 PPTX。切回 PowerPoint 后编辑，按 Control-C 结束终端中的会话。此模式需要已登录的 Codex CLI、LibreOffice 和安装了 Pillow 的 Python 3。也可以直接运行包内脚本：
 
 ```sh
 python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"
@@ -67,7 +67,7 @@ python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" sessi
 python3 Scripts/stage-drawing.py session Examples/Tab-Demo.pptx
 ```
 
-切回 PowerPoint 后移动图形。连续编辑稳定后，模型会结合当前页与历史生成 DrawingML，应用在临时副本中渲染差异。画布面板会显示建议及可用的采纳方式。几何和单段文字变更可写回；其他原生图形修改目前仅供预览。可追加 `--reference 图片路径` 提供参考素材。按 Control-C 结束监听。
+切回 PowerPoint 后移动图形。连续编辑稳定后，模型会结合当前页与历史生成 DrawingML，应用在临时副本中渲染差异。画布面板会显示建议及可用的采纳方式。支持写回位置、尺寸、旋转、单段文字、明确指定的 RGB 纯色填充，以及能从已有对象复制得到的原生图形。其他修改目前仅供预览。可追加 `--reference 图片路径` 提供参考素材。按 Control-C 结束监听。
 
 ## 开发验证
 
