@@ -5,7 +5,18 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 scratch=$(mktemp -d "$HOME/Library/Containers/com.microsoft.Powerpoint/Data/tmp/ppt-cursor-XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 name=$(basename "$scratch")
-cp "$root/Examples/Tab-Demo.pptx" "$scratch/$name.pptx"
+cat > "$scratch/shape.xml" <<'DRAWING'
+<p:sp>
+  <p:nvSpPr><p:cNvPr id="1" name="Cursor Chevron"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+  <p:spPr>
+    <a:xfrm><a:off x="1200000" y="2000000"/><a:ext cx="1800000" cy="650000"/></a:xfrm>
+    <a:prstGeom prst="chevron"><a:avLst/></a:prstGeom>
+    <a:solidFill><a:srgbClr val="5370EA"/></a:solidFill>
+  </p:spPr>
+</p:sp>
+DRAWING
+python3 "$root/Scripts/stage-drawing.py" "$root/Examples/Tab-Demo.pptx" ppt/slides/slide1.xml \
+    "$scratch/shape.xml" "$scratch/$name.pptx"
 osascript - "$scratch" "$name" <<'APPLESCRIPT'
 on run argv
     set folderPath to item 1 of argv
@@ -18,7 +29,7 @@ on run argv
         set deck to presentation (deckName & ".pptx")
         try
             save deck in firstPDF as save as PDF
-            set targetShape to shape 3 of slide 1 of deck
+            set targetShape to shape "Cursor Chevron" of slide 1 of deck
             set top of targetShape to (top of targetShape) - 60
             save deck in secondPDF as save as PDF
         on error errorText number errorCode
