@@ -12,6 +12,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?
     private var overlay: NSPanel?
+    private var suggestionPanel: SuggestionPanel?
     private var images: [ReferenceImage] = []
     private var history = EditHistory()
     private var monitoring = false
@@ -19,6 +20,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var locating = false
     private var inference: PredictionRun?
     private var applying = false
+    private var inFlightContext: EditContext?
+    private var hiddenSuggestion: (SlideSnapshot, Prediction)?
     private var waiting: EditContext?
     private var pending: (SlideSnapshot, Prediction)?
     private var generation = 0
@@ -43,13 +46,18 @@ final class Controller: NSObject, NSApplicationDelegate {
         let settings = menu.insertItem(withTitle: "打开控制窗口…", action: #selector(openSetup), keyEquivalent: "", at: 1)
         settings.target = self
         item.menu = menu
-        openSetup()
+        if CommandLine.arguments.contains("--start-editing") { startEditing() } else { openSetup() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.poll() }
         observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                      object: nil, queue: .main) { [weak self] _ in
-            guard let self, !self.frontmost else { return }
+            guard let self else { return }
+            if self.frontmost { self.poll(); return }
+            guard self.monitoring else { return }
+            let ready = self.pending ?? self.hiddenSuggestion
+            let interrupted = self.waiting ?? self.inFlightContext
             self.invalidate()
-            self.history.reset()
+            self.hiddenSuggestion = ready
+            self.waiting = interrupted
         }
     }
 
@@ -69,13 +77,24 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
     }
-    private func message(_ value: String) { status.title = value; item.button?.toolTip = value; setup.update(value) }
+    private func message(_ value: String) {
+        status.title = value
+        item.button?.toolTip = value
+        setup.update(value)
+        if CommandLine.arguments.contains("--verbose") {
+            FileHandle.standardError.write(Data((value + "\n").utf8))
+        }
+    }
     private func invalidate() {
         generation += 1
         inference?.cancel()
         pending = nil
+        hiddenSuggestion = nil
+        inFlightContext = nil
         waiting = nil
         shortcut.disable()
+        suggestionPanel?.orderOut(nil)
+        suggestionPanel = nil
         overlay?.orderOut(nil)
         overlay = nil
     }
@@ -133,8 +152,10 @@ final class Controller: NSObject, NSApplicationDelegate {
                 self.frame = page
                 self.calibratedWindow = current
                 self.history.reset()
+                _ = self.history.observe(slide)
                 self.monitoring = true
                 self.toggle.title = "暂停预测"
+                ppt.activate(options: [])
                 self.message("已定位画布，等待编辑")
             }
         }
@@ -195,7 +216,10 @@ final class Controller: NSObject, NSApplicationDelegate {
             if old.frame.origin != current.frame.origin {
                 frame = frame?.offsetBy(dx: current.frame.minX - old.frame.minX, dy: current.frame.minY - old.frame.minY)
                 calibratedWindow = current
-                if let frame { overlay?.setFrame(frame, display: true) }
+                if let frame {
+                    overlay?.setFrame(frame, display: true)
+                    suggestionPanel?.position(at: frame)
+                }
             }
         }
         reading = true
@@ -216,7 +240,12 @@ final class Controller: NSObject, NSApplicationDelegate {
                         self.message(context == nil ? "已读取幻灯片，等待编辑" : "正在判断下一步…")
                         return
                     }
-                    self.startPrediction()
+                    if let (baseline, suggestion) = self.hiddenSuggestion, baseline == state {
+                        self.hiddenSuggestion = nil
+                        self.show(state, suggestion)
+                    } else {
+                        self.startPrediction()
+                    }
                 case .failure(let error):
                     self.invalidate()
                     self.message(error.localizedDescription)
@@ -231,6 +260,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let references = images
         let run = PredictionRun()
         inference = run
+        inFlightContext = context
         let revision = generation
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { () throws -> Prediction in
@@ -244,6 +274,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 self.inference = nil
                 guard self.generation == revision, self.frontmost else { return }
+                self.inFlightContext = nil
                 switch result {
                 case .success(let suggestion):
                     guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("等待更多编辑"); return }
@@ -266,7 +297,12 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         overlay = panel
         pending = (state, prediction)
-        message(prediction.summary + (shortcut.enable() ? " · ⌥⌘↩ 采纳" : " · 从菜单采纳"))
+        let shortcutAvailable = shortcut.enable()
+        let controls = SuggestionPanel(summary: prediction.summary, shortcutAvailable: shortcutAvailable,
+                                       owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
+        suggestionPanel = controls
+        controls.orderFrontRegardless()
+        message(prediction.summary + (shortcutAvailable ? " · ⌥⌘↩ 采纳" : " · 从菜单采纳"))
     }
 
     @objc private func accept() {
