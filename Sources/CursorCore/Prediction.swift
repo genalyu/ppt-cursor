@@ -12,6 +12,7 @@ public struct Placement: Codable, Sendable {
 
 public struct ObjectEdit: Codable, Sendable {
     public let id: String
+    public let duplicate: Bool?
     public let placement: Placement
     public let rotation: Double
     public let text: String?
@@ -30,8 +31,11 @@ public struct Prediction: Codable, Sendable {
 
     public func validate(for slide: SlideSnapshot, images: [ReferenceImage] = []) throws {
         let ids = Set(slide.objects.map(\.id))
+        let placeholders = Set(slide.objects.filter { $0.kind == "shape type place holder" }.map(\.id))
+        let originals = edits.filter { $0.duplicate != true }.map(\.id)
         guard summary.count <= 500, edits.count <= 100, artwork.count <= 12,
-              Set(edits.map(\.id)).count == edits.count,
+              edits.allSatisfy({ $0.duplicate != true || !placeholders.contains($0.id) }),
+              Set(originals).count == originals.count,
               edits.allSatisfy({ ids.contains($0.id) && $0.placement.validate(in: slide) && $0.rotation.isFinite && ($0.text?.count ?? 0) <= 20000 }),
               artwork.allSatisfy({ $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
             throw PredictionError.invalidSuggestion

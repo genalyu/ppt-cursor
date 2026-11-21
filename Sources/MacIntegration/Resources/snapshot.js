@@ -103,7 +103,7 @@ function run(args) {
     }
     // Paste through PowerPoint's native view; keep every existing pasteboard item/type.
     // Only restore our temporary pasteboard if another app hasn't copied something meanwhile.
-    function pasteArtwork(asset) {
+    function pasteArtwork(asset, copySource) {
         ObjC.import("AppKit");
         const board = $.NSPasteboard.generalPasteboard;
         const saved = [];
@@ -117,14 +117,14 @@ function run(args) {
             }
             saved.push(copy);
         }
-        const data = asset.referenceID
+        const data = copySource ? null : asset.referenceID
             ? $.NSData.alloc.initWithBase64EncodedStringOptions($(request.sources[asset.referenceID]), 0)
             : $(asset.svg).dataUsingEncoding($.NSUTF8StringEncoding);
-        const image = $.NSImage.alloc.initWithData(data);
-        if (!image || !image.isValid) throw Error("无法渲染建议素材");
+        const image = data ? $.NSImage.alloc.initWithData(data) : null;
+        if (!copySource && (!image || !image.isValid)) throw Error("无法渲染建议素材");
         const count = slide.shapes.length;
         let vectorURL = null;
-        if (!asset.referenceID) {
+        if (!copySource && !asset.referenceID) {
             const path = args[1] + "-" + ObjC.unwrap($.NSUUID.UUID.UUIDString) + ".svg";
             vectorURL = $.NSURL.fileURLWithPath($(path));
             if (!data.writeToURLAtomically(vectorURL, true)) throw Error("无法准备矢量素材");
@@ -132,15 +132,19 @@ function run(args) {
         board.clearContents;
         let version = board.changeCount;
         try {
-            const prepared = vectorURL ? board.writeObjects($([vectorURL]))
-                : board.setDataForType(image.TIFFRepresentation, $("public.tiff"));
-            if (!prepared) throw Error("无法准备素材");
+            if (copySource) {
+                copySource.copyShape();
+            } else {
+                const prepared = vectorURL ? board.writeObjects($([vectorURL]))
+                    : board.setDataForType(image.TIFFRepresentation, $("public.tiff"));
+                if (!prepared) throw Error("无法准备素材");
+            }
             version = board.changeCount;
             app.activeWindow.view.pasteObject();
-            if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增图片");
+            if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增对象");
             const shape = slide.shapes[count];
             inserted.push(shape);
-            write(shape, asset.placement, 0, null);
+            write(shape, asset.placement, asset.rotation || 0, asset.text);
         } finally {
             if (vectorURL) $.NSFileManager.defaultManager.removeItemAtURLError(vectorURL, null);
             if (board.changeCount === version) {
@@ -152,7 +156,10 @@ function run(args) {
     const inserted = [];
     const started = [];
     try {
-        for (const change of changes) {
+        for (const change of changes.filter(change => change.edit.duplicate)) {
+            pasteArtwork(change.edit, change.shape);
+        }
+        for (const change of changes.filter(change => !change.edit.duplicate)) {
             started.push(change);
             write(change.shape, change.edit.placement, change.edit.rotation, change.edit.text);
         }
