@@ -3,10 +3,14 @@ function run() {
     const powerpoint = Application("com.microsoft.Powerpoint");
     if (!powerpoint.running() || !powerpoint.presentations.length) return "null";
     const presentation = powerpoint.activePresentation;
-    const slide = powerpoint.activeWindow.view.slide;
-    const shapes = slide.shapes();
+    if (!presentation.slides.length) return "null";
+    const index = powerpoint.activeWindow.view.slide.slideIndex();
+    if (!index) return "null";
+    const slide = presentation.slides[index - 1];
+    const shapes = slide.shapes;
     const page = presentation.pageSetup;
-    const objects = shapes.map((shape, index) => {
+    const objects = Array.from({length: shapes.length}, (_, index) => {
+        const shape = shapes[index];
         let text = null;
         if (shape.hasTextFrame()) text = String(shape.textFrame.textRange.content());
         return {
@@ -20,6 +24,6 @@ function run() {
     });
     return JSON.stringify({
         document: String(presentation.fullName() || presentation.name()),
-        slideID: slide.slideID(), width: page.slideWidth(), height: page.slideHeight(), objects
+        slideID: slide.slideID(), width: page.slideWidth(), height: presentation.slideMaster.height(), objects
     });
 }
