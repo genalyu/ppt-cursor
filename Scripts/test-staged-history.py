@@ -107,3 +107,38 @@ def stale_during_prediction():
 
 stale_during_prediction()
 print("Verified stale request skipped, stale result discarded and latest edit predicted")
+
+
+def dismissed_history(mark_dismissed):
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        source = folder / "test.pptx"
+        source.touch()
+        def state(page, x):
+            return json.dumps(dict(document=str(source), slideID=page, width=720, height=540,
+                                   objects=[dict(id="shape", x=x)]))
+        states = [state(1, 0), state(1, 10), state(1, 10), state(1, 10),
+                  state(2, 0), state(2, 20), state(2, 20),
+                  state(1, 10), state(1, 30), state(1, 30)]
+        requests = []
+        def predict(baseline, page, history_file, candidate, refs, dismissed, *args):
+            requests.append((page, list(dismissed)))
+            if len(requests) == 1:
+                candidate.mkdir()
+                (candidate / "summary.txt").write_text("Align the third object")
+        def preview(command):
+            if mark_dismissed:
+                (Path(command[-1]) / "dismissed").touch()
+        with patch.object(staging.subprocess, "check_output", side_effect=states), \
+             patch.object(staging.subprocess, "run", side_effect=preview), \
+             patch.object(staging, "predict_preview", side_effect=predict), patch.object(staging.time, "sleep"):
+            try:
+                staging.watch_preview(source, folder / "preview", folder / "canvas")
+            except StopIteration:
+                pass
+        return requests
+
+
+assert dismissed_history(True) == [("1", []), ("2", []), ("1", ["Align the third object"])]
+assert dismissed_history(False) == [("1", []), ("2", []), ("1", [])]
+print("Verified explicit dismissals persist on the original slide and ordinary preview exits do not count")
