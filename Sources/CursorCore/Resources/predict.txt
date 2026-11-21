@@ -11,3 +11,4 @@ Table objects include total row and column counts and a top-left visibleSample o
 A null table entry continues a merged cell whose text was already listed.
 When imagesJustImported is true, the user just selected the attached images. Consider how a matching asset could fit the current slide even without an earlier edit. On later edits the same images may remain available without being newly selected.
 Use solidFillRGB to change an existing solid fill when supported by the edit history. Supply three integer RGB channels (0–255), or null to preserve the fill. Only recolor objects that have a known solidFillRGB.
+For diagrams with arrows, draw each arrowhead explicitly as a filled path or polygon. The Mac preview renderer may omit SVG marker-end arrowheads. For gradients, use linearGradient or radialGradient in defs and reference its local ID from the fill.
