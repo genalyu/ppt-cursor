@@ -1,15 +1,16 @@
 import Foundation
 
 enum NativeSessionLauncher {
-    static func command(script: URL, document: URL, codex: URL?) -> String {
+    static func command(script: URL, document: URL, codex: URL?, references: [URL], session: URL) -> String {
         func quote(_ path: String) -> String {
             "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
         }
-        var lines = ["#!/bin/sh", "rm -f \"$0\""]
+        var lines = ["#!/bin/sh", "session_dir=" + quote(session.path), "trap 'rm -rf \"$session_dir\"' EXIT", "trap 'exit 130' HUP INT TERM"]
         if let codex {
             lines.append("export PATH=" + quote(codex.deletingLastPathComponent().path) + ":\"$PATH\"")
         }
-        lines.append("exec python3 " + quote(script.path) + " session " + quote(document.path))
+        let arguments = [script.path, "session", document.path] + references.flatMap { ["--reference", $0.path] }
+        lines.append("python3 " + arguments.map(quote).joined(separator: " "))
         return lines.joined(separator: "\n") + "\n"
     }
 }

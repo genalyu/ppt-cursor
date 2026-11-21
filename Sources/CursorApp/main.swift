@@ -90,20 +90,30 @@ final class Controller: NSObject, NSApplicationDelegate {
         chooser.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
         chooser.message = "选择已在 PowerPoint 打开的文稿。开放式预测使用 Codex CLI；按 Control-C 结束。"
         guard chooser.runModal() == .OK, let document = chooser.url else { return }
-        let launcher = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString + ".command")
-        let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable())
+        let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
+        let launcher = session.appendingPathComponent("PPT Cursor.command")
         do {
+            try FileManager.default.createDirectory(at: session, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+            let references = try images.enumerated().map { index, image in
+                let folder = session.appendingPathComponent(String(index))
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+                let stem = URL(fileURLWithPath: image.name).deletingPathExtension().lastPathComponent
+                let url = folder.appendingPathComponent(stem + ".png")
+                try image.png.write(to: url)
+                return url
+            }
+            let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable(), references: references, session: session)
             try command.write(to: launcher, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: launcher.path)
         } catch {
-            try? FileManager.default.removeItem(at: launcher)
+            try? FileManager.default.removeItem(at: session)
             message(error.localizedDescription)
             return
         }
         if monitoring || locationRequest != nil { toggleMonitoring() }
         NSWorkspace.shared.open([launcher], withApplicationAt: terminal, configuration: .init()) { _, error in
             if let error {
-                try? FileManager.default.removeItem(at: launcher)
+                try? FileManager.default.removeItem(at: session)
                 DispatchQueue.main.async { self.message(error.localizedDescription) }
             }
         }
