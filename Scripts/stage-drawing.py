@@ -442,6 +442,12 @@ def reference_inputs(paths, scratch):
     return catalog, flags
 
 
+def refreshed_snapshot(previous, current):
+    if "acceptedSuggestion" in previous:
+        return dict(current, acceptedSuggestion=previous["acceptedSuggestion"])
+    return current
+
+
 def model_history(states):
     transitions = []
     for previous, current in zip(states, states[1:]):
@@ -610,7 +616,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             elif (len(history) > 1 or references_pending) and state["objects"] != last_prediction:
                 references_pending = False
                 last_prediction = state["objects"]
-                history[-1].update(state)
+                history[-1] = refreshed_snapshot(history[-1], state)
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
                 candidate = scratch / "preview"
@@ -658,7 +664,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         references_pending = len(history) == 1 and bool(references)
             else:
                 # Keep the selection immediately preceding the next edit.
-                history[-1].update(state)
+                history[-1] = refreshed_snapshot(history[-1], state)
             time.sleep(0.5)
 
 
