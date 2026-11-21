@@ -7,7 +7,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "先打开 PowerPoint，定位幻灯片画布", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel))
+    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), openNativeSession: #selector(openNativeSession), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel))
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?

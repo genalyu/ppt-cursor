@@ -5,8 +5,8 @@ final class SetupWindow: NSWindow {
 
     let includePage = NSButton(checkboxWithTitle: "向模型提供当前幻灯片截图", target: nil, action: nil)
 
-    init(owner: NSObject, calibrate: Selector, chooseImages: Selector, modelSettings: Selector) {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 470, height: 260),
+    init(owner: NSObject, calibrate: Selector, openNativeSession: Selector, chooseImages: Selector, modelSettings: Selector) {
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 470, height: 300),
                    styleMask: [.titled, .closable], backing: .buffered, defer: false)
         title = "PPT Cursor"
         isReleasedWhenClosed = false
@@ -18,10 +18,13 @@ final class SetupWindow: NSWindow {
         start.keyEquivalent = "\r"
         let assets = NSButton(title: "选择图片素材…", target: owner, action: chooseImages)
         let settings = NSButton(title: "模型连接…", target: owner, action: modelSettings)
-        let buttons = NSStackView(views: [start, assets, settings])
+        let native = NSButton(title: "在终端启动开放式预测…", target: owner, action: openNativeSession)
+        native.toolTip = "使用 Codex CLI 生成原生图形建议。在终端按 Control-C 结束会话。"
+        let buttons = NSStackView(views: [start, native])
+        let options = NSStackView(views: [assets, settings])
         state.textColor = .secondaryLabelColor
         state.font = .systemFont(ofSize: 12)
-        let stack = NSStackView(views: [heading, help, includePage, buttons, state])
+        let stack = NSStackView(views: [heading, help, includePage, options, buttons, state])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
