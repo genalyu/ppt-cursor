@@ -45,6 +45,10 @@ def slide_part(package, selector):
     return posixpath.normpath(posixpath.join("ppt", targets[0])).lstrip("/")
 
 
+class UnsavedObjectError(ValueError):
+    pass
+
+
 def native_shape_id(tree, live_key):
     name, occurrence = json.loads(live_key)
     if not isinstance(name, str) or type(occurrence) is not int or occurrence < 1:
@@ -63,7 +67,7 @@ def native_shape_id(tree, live_key):
             count += 1
             if count == occurrence:
                 return int(identity.getAttribute("id"))
-    raise ValueError("Live object does not match a shape in this slide copy")
+    raise UnsavedObjectError("当前对象尚未同步到 PPTX 文件")
 
 
 def model_shape(shape):
@@ -604,6 +608,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     last_prediction = None
     dismissed = []
     references_pending = bool(references)
+    awaiting_save = None
     with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
         scratch = Path(directory)
         while True:
@@ -611,6 +616,14 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             if state == "deferred":
                 time.sleep(0.5)
                 continue
+            if awaiting_save is not None:
+                if state and state["slideID"] == awaiting_save[0] and state["objects"] == last_prediction:
+                    if source.stat().st_mtime_ns == awaiting_save[1]:
+                        time.sleep(0.5)
+                        continue
+                    last_prediction = None
+                    references_pending = bool(references)
+                awaiting_save = None
             if not state:
                 history.clear()
                 last_prediction = None
@@ -628,8 +641,17 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
                 candidate = scratch / "preview"
+                source_revision = source.stat().st_mtime_ns
                 try:
                     predict_preview(source, str(state["slideID"]), history_file, candidate, references, dismissed, include_page)
+                except UnsavedObjectError:
+                    if session_canvas is None:
+                        raise
+                    if candidate.exists():
+                        shutil.rmtree(candidate)
+                    awaiting_save = (state["slideID"], source_revision)
+                    print("检测到尚未写入 PPTX 的对象。保存文稿后将自动继续预测。", file=sys.stderr, flush=True)
+                    continue
                 except (subprocess.SubprocessError, ValueError, ExpatError) as error:
                     if session_canvas is None:
                         raise
