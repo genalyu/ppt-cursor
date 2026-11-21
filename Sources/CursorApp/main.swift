@@ -107,6 +107,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private func invalidate() {
         generation += 1
         inference?.cancel()
+        inference = nil
         pending = nil
         failedContext = nil
         hiddenSuggestion = nil
@@ -462,8 +463,9 @@ final class Controller: NSObject, NSApplicationDelegate {
                 return try Predictor(executable: executable).predict(context, images: references, currentPage: page, run: run)
             }
             DispatchQueue.main.async {
+                // A cancelled request can finish after the next prediction has started.
+                guard self.inference === run, self.generation == revision else { return }
                 self.inference = nil
-                guard self.generation == revision else { return }
                 self.inFlightContext = nil
                 switch result {
                 case .success(let suggestion):

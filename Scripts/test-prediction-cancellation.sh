@@ -30,6 +30,11 @@ let deadline = Date().addingTimeInterval(5)
 while !process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
 precondition(process.isRunning)
 running.cancel()
+// A new edit owns a separate prediction while the previous process winds down.
+let replacement = Process()
+replacement.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+try PredictionRun().execute(replacement)
+precondition(replacement.terminationStatus == 0)
 precondition(finished.wait(timeout: .now() + 5) == .success)
 precondition(!process.isRunning)
 let stuck = Process()
