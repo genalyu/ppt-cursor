@@ -182,6 +182,7 @@ function run(args) {
     function pasteArtwork(asset, copySource) {
         ObjC.import("AppKit");
         const board = $.NSPasteboard.generalPasteboard;
+        const originalVersion = board.changeCount;
         const saved = [];
         const existing = board.pasteboardItems;
         for (let i = 0; i < existing.count; i++) {
@@ -205,14 +206,23 @@ function run(args) {
             vectorURL = $.NSURL.fileURLWithPath($(path));
             if (!data.writeToURLAtomically(vectorURL, true)) throw Error("无法准备矢量素材");
         }
+        if (board.changeCount !== originalVersion) {
+            if (vectorURL) $.NSFileManager.defaultManager.removeItemAtURLError(vectorURL, null);
+            throw Error("剪贴板已更新，请重试采纳");
+        }
         board.clearContents;
         let version = board.changeCount;
         try {
             if (copySource) {
                 copySource.copyShape();
             } else {
-                const prepared = vectorURL ? board.writeObjects($([vectorURL]))
-                    : board.setDataForType(image.TIFFRepresentation, $("public.tiff"));
+                let item = vectorURL;
+                if (!item) {
+                    item = $.NSPasteboardItem.alloc.init;
+                    if (!item.setDataForType(data, $("public.png")) ||
+                        !item.setDataForType(image.TIFFRepresentation, $("public.tiff"))) throw Error("无法准备图片");
+                }
+                const prepared = board.writeObjects($([item]));
                 if (!prepared) throw Error("无法准备素材");
             }
             version = board.changeCount;
