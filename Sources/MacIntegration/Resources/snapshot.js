@@ -20,8 +20,15 @@ function snapshot() {
         if (shape.hasTextFrame()) text = String(shape.textFrame.textRange.content());
         let fontSize;
         if (text) {
-            const size = shape.textFrame.textRange.font.fontSize();
-            if (Number.isFinite(size) && size > 0) fontSize = size;
+            // PowerPoint reports the first run's size for the entire range, including mixed text.
+            const runs = shape.textFrame.textRange.textFlows;
+            const count = runs.length;
+            if (count > 0 && count <= 64) {
+                const size = runs[0].font.fontSize();
+                let uniform = Number.isFinite(size) && size > 0;
+                for (let i = 1; uniform && i < count; i++) uniform = runs[i].font.fontSize() === size;
+                if (uniform) fontSize = size;
+            }
         }
         return {
             fontSize,
