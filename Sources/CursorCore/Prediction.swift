@@ -32,7 +32,7 @@ public struct Prediction: Codable, Sendable {
         guard summary.count <= 500, edits.count <= 100, artwork.count <= 12,
               Set(edits.map(\.id)).count == edits.count,
               edits.allSatisfy({ ids.contains($0.id) && $0.placement.validate(in: slide) && $0.rotation.isFinite && ($0.text?.count ?? 0) <= 20000 }),
-              artwork.allSatisfy({ $0.placement.validate(in: slide) && $0.svg.utf8.count <= 200000 }) else {
+              artwork.allSatisfy({ $0.placement.validate(in: slide) && VectorAsset.accepts($0.svg) }) else {
             throw PredictionError.invalidSuggestion
         }
     }
@@ -67,6 +67,7 @@ public struct Predictor: Sendable {
         defer { try? handle.close() }
         process.standardInput = handle
         process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw PredictionError.missingResult }
