@@ -130,17 +130,17 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
     live_objects = {native_shape_id(tree, obj["id"]): obj for obj in current["objects"]}
     best_edit = None
     best_score = None
-    for source in tree.childNodes:
-        if source.namespaceURI != P or source.localName != "sp":
-            continue
-        identity = int(source.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id"))
+    # Parse the slide root so inherited namespaces on Office extension metadata resolve.
+    slide = ElementTree.fromstring(tree.ownerDocument.toxml())
+    for before in slide.findall(f".//{{{P}}}spTree/{{{P}}}sp"):
+        identity_node = before.find(f"{{{P}}}nvSpPr/{{{P}}}cNvPr")
+        identity = int(identity_node.attrib["id"])
         if replace_id is not None and identity != replace_id:
             continue
         target = live_objects.get(identity)
         duplicate = replace_id is None
         if target is None or (duplicate and target.get("kind") == "shape type place holder"):
             continue
-        before = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{source.toxml()}</root>')[0]
         after = ElementTree.fromstring(after_xml)[0]
         if duplicate:
             # PowerPoint assigns its own identity and name to a pasted native copy.
