@@ -45,7 +45,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         for (title, action) in [("定位幻灯片画布…", #selector(calibrate)), ("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
-                                ("清空图片素材", #selector(clearImages)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("清空图片素材", #selector(clearImages)), ("在终端启动开放式预测…", #selector(openNativeSession)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -77,6 +77,35 @@ final class Controller: NSObject, NSApplicationDelegate {
             self.failedContext = failed
             self.hiddenSuggestion = ready
             self.waiting = interrupted
+        }
+    }
+
+    @objc private func openNativeSession() {
+        guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py"),
+              let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            message("请从打包的 PPT Cursor 应用启动开放式会话")
+            return
+        }
+        let chooser = NSOpenPanel()
+        chooser.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
+        chooser.message = "选择已在 PowerPoint 打开的文稿。开放式预测使用 Codex CLI；按 Control-C 结束。"
+        guard chooser.runModal() == .OK, let document = chooser.url else { return }
+        let launcher = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString + ".command")
+        let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable())
+        do {
+            try command.write(to: launcher, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: launcher.path)
+        } catch {
+            try? FileManager.default.removeItem(at: launcher)
+            message(error.localizedDescription)
+            return
+        }
+        if monitoring || locationRequest != nil { toggleMonitoring() }
+        NSWorkspace.shared.open([launcher], withApplicationAt: terminal, configuration: .init()) { _, error in
+            if let error {
+                try? FileManager.default.removeItem(at: launcher)
+                DispatchQueue.main.async { self.message(error.localizedDescription) }
+            }
         }
     }
 
