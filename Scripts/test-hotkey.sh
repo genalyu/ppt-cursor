@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cat > "$tmp/main.swift" <<'SWIFT'
+import AppKit
+import Carbon
+
+// Exercise the same application-target Carbon handler as an OS hotkey notification.
+// This verifies dispatch, payload filtering and registration lifecycle separately from hardware.
+_ = NSApplication.shared
+var count = 0
+let shortcut = AcceptShortcut { count += 1 }
+func send(id: UInt32) {
+    var event: EventRef?
+    precondition(CreateEvent(nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed),
+                             0, EventAttributes(kEventAttributeNone), &event) == noErr)
+    defer { ReleaseEvent(event) }
+    var payload = EventHotKeyID(signature: 0x50505443, id: id)
+    precondition(SetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                   EventParamType(typeEventHotKeyID), MemoryLayout<EventHotKeyID>.size,
+                                   &payload) == noErr)
+    _ = SendEventToEventTarget(event, GetApplicationEventTarget())
+}
+send(id: 1)
+precondition(count == 0, "Disabled shortcut accepted")
+precondition(shortcut.enable(), "Shortcut is already assigned or could not be registered")
+send(id: 2)
+precondition(count == 0, "Unrelated hotkey triggered acceptance")
+send(id: 1)
+precondition(count == 1, "Registered hotkey did not dispatch")
+shortcut.disable()
+send(id: 1)
+precondition(count == 1, "Late hotkey dispatched after release")
+print("Carbon registration, routing, filtering and release passed")
+SWIFT
+swiftc Sources/CursorApp/AcceptShortcut.swift "$tmp/main.swift" -o "$tmp/check"
+"$tmp/check"

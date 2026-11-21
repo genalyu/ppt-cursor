@@ -15,12 +15,15 @@ final class AcceptShortcut {
                                            EventParamType(typeEventHotKeyID), nil,
                                            MemoryLayout<EventHotKeyID>.size, nil, &id)
             guard status == noErr, id.signature == 0x50505443, id.id == 1 else { return OSStatus(eventNotHandledErr) }
-            Unmanaged<AcceptShortcut>.fromOpaque(data).takeUnretainedValue().accept()
+            let shortcut = Unmanaged<AcceptShortcut>.fromOpaque(data).takeUnretainedValue()
+            guard shortcut.key != nil else { return OSStatus(eventNotHandledErr) }
+            shortcut.accept()
             return noErr
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
     func enable() -> Bool {
+        guard handler != nil else { return false }
         if key != nil { return true }
         return RegisterEventHotKey(UInt32(kVK_Return), UInt32(optionKey | cmdKey),
                                    EventHotKeyID(signature: 0x50505443, id: 1),
