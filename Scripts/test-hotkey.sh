@@ -71,7 +71,38 @@ precondition(replacement.enable(useTab: true))
 send(id: 1)
 precondition(replacementCount == 0, "A previous preview instance accepted a new suggestion")
 replacement.disable()
+if CommandLine.arguments.contains("--system-tab") {
+    guard CGPreflightPostEventAccess() else {
+        FileHandle.standardError.write(Data("System Tab check requires macOS permission to post keyboard events.\n".utf8))
+        exit(77)
+    }
+    precondition(replacement.enable(useTab: true))
+    NSApplication.shared.setActivationPolicy(.regular)
+    NSApplication.shared.activate(ignoringOtherApps: true)
+    let focusDeadline = Date().addingTimeInterval(2)
+    while !NSApplication.shared.isActive && Date() < focusDeadline {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    }
+    precondition(NSApplication.shared.isActive, "Test application did not acquire focus")
+    for down in [true, false] {
+        guard let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_Tab), keyDown: down) else {
+            fatalError("Could not create Tab event")
+        }
+        event.flags = []
+        event.post(tap: .cghidEventTap)
+    }
+    let deadline = Date().addingTimeInterval(3)
+    while replacementCount == 0 && Date() < deadline {
+        if let event = NSApp.nextEvent(matching: .any, until: Date().addingTimeInterval(0.05),
+                                       inMode: .default, dequeue: true) {
+            NSApp.sendEvent(event)
+        }
+    }
+    replacement.disable()
+    precondition(replacementCount == 1, "System Tab did not dispatch exactly once")
+    print("System Tab dispatched")
+}
 print("Carbon registration, routing, filtering and release passed")
 SWIFT
 swiftc Sources/CursorApp/AcceptShortcut.swift "$tmp/main.swift" -o "$tmp/check"
-"$tmp/check"
+"$tmp/check" "$@"
