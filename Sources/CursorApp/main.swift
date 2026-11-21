@@ -320,6 +320,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("等待更多编辑"); return }
                     // PowerPoint may have changed during inference, between two polling ticks.
                     // Publish only after a fresh capture confirms the baseline and the mouse is up.
+                    self.generation += 1 // Reject any capture already in flight when inference finished.
                     self.hiddenSuggestion = (context.current, suggestion)
                     self.poll()
                 case .failure(let error): self.message(error.localizedDescription)
