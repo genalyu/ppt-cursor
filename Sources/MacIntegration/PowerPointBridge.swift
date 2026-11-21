@@ -13,14 +13,15 @@ public enum PowerPointBridge {
         try prediction.validate(for: baseline, images: images)
         struct Request: Encodable {
             let baseline: SlideSnapshot
+            let vectorIDs: [String]
             let sources: [String: Data]
             let proposal: Prediction
         }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: file) }
         let used = Set(prediction.artwork.compactMap(\.referenceID))
-        let sources = Dictionary(uniqueKeysWithValues: images.filter { used.contains($0.id) }.map { ($0.id, $0.png) })
-        let data = try JSONEncoder().encode(Request(baseline: baseline, sources: sources, proposal: prediction))
+        let sources = Dictionary(uniqueKeysWithValues: images.filter { used.contains($0.id) }.map { ($0.id, $0.vector ?? $0.png) })
+        let data = try JSONEncoder().encode(Request(baseline: baseline, vectorIDs: images.filter { used.contains($0.id) && $0.vector != nil }.map(\.id), sources: sources, proposal: prediction))
         guard FileManager.default.createFile(atPath: file.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
             throw BridgeFailure("无法准备 PowerPoint 操作。")
         }

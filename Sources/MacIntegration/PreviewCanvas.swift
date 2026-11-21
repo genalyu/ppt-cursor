@@ -18,7 +18,7 @@ public final class PreviewCanvas: NSView {
             let bytes: Data
             if let id = asset.referenceID {
                 guard let reference = images.first(where: { $0.id == id }) else { return nil }
-                bytes = reference.png
+                bytes = reference.vector ?? reference.png
             } else {
                 bytes = Data(asset.svg.utf8)
             }

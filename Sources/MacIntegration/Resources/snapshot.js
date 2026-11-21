@@ -200,7 +200,7 @@ function run(args) {
         if (!copySource && (!image || !image.isValid)) throw Error("无法渲染建议素材");
         const count = slide.shapes.length;
         let vectorURL = null;
-        if (!copySource && !asset.referenceID) {
+        if (!copySource && (!asset.referenceID || request.vectorIDs.includes(asset.referenceID))) {
             const path = args[1] + "-" + ObjC.unwrap($.NSUUID.UUID.UUIDString) + ".svg";
             vectorURL = $.NSURL.fileURLWithPath($(path));
             if (!data.writeToURLAtomically(vectorURL, true)) throw Error("无法准备矢量素材");

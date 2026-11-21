@@ -196,7 +196,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func chooseImages() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff]
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .svg]
         panel.allowsMultipleSelection = true
         panel.message = "选择供预测使用的图片。模型会收到文件名及缩略图。重新选择将替换本次素材。"
         guard panel.runModal() == .OK else { return }

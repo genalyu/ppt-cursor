@@ -1,8 +1,8 @@
 import Foundation
 
 /// Self-contained vector artwork suitable for an AppKit preview and insertion into PowerPoint.
-enum VectorAsset {
-    static func accepts(_ svg: String) -> Bool {
+public enum VectorAsset {
+    public static func accepts(_ svg: String) -> Bool {
         guard svg.utf8.count <= 200_000,
               svg.range(of: "<!", options: .caseInsensitive) == nil,
               svg.range(of: "<?", options: .caseInsensitive) == nil else { return false }
