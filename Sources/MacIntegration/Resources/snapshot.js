@@ -257,7 +257,31 @@ function run(args) {
     const started = [];
     if (!app.frontmost()) throw Error("PowerPoint 已切至后台，建议未执行");
     try {
-        if (request.nativeInsert) {
+        if (request.nativeInsert && request.nativeInsert.presetTarget) {
+            const native = request.nativeInsert;
+            const index = baseline.objects.findIndex(object => object.id === native.presetTarget);
+            if (index < 0 || !baseline.objects[index].autoShapeType) throw Error("原形状已变化");
+            const original = snapshot();
+            app.open(Path(native.path));
+            const deck = app.presentations.byName(native.path.split("/").pop());
+            let preset;
+            try {
+                const source = deck.slides[native.page - 1].shapes[index];
+                if (source.name() !== native.name) throw Error("建议图形与预览不符");
+                preset = source.autoShapeType();
+            } finally { deck.close({saving: "no"}); }
+            if (!app.frontmost() || snapshot() !== original) throw Error("原幻灯片状态已变化");
+            const shape = slide.shapes[index], previous = shape.autoShapeType();
+            try {
+                shape.autoShapeType = preset;
+                const expected = JSON.parse(original);
+                expected.objects[index].autoShapeType = String(preset);
+                if (!sameState(JSON.parse(snapshot()), expected)) throw Error("更换形状后的属性与预览不符");
+            } catch (error) {
+                shape.autoShapeType = previous;
+                throw error;
+            }
+        } else if (request.nativeInsert) {
             const native = request.nativeInsert, position = {original: snapshot()};
             pasteArtwork(position, {copyShape() {
                 app.open(Path(native.path));

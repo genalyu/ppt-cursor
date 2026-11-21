@@ -163,6 +163,7 @@ def stage(source, part, fragment, output, replace_id=None):
             replacement = slide.importNode(shape, True)
             if isinstance(replace_id, str):
                 replace_id = native_shape_id(native_shape_index(tree), replace_id)
+            preset_target = None
             if replace_id is None:
                 identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
                 identity.setAttribute("id", str(max(ids, default=0) + 1))
@@ -179,6 +180,21 @@ def stage(source, part, fragment, output, replace_id=None):
                     raise ValueError("Replacement requires a top-level native shape")
                 incoming, = replacement.getElementsByTagNameNS(P, "nvSpPr")
                 replacement.replaceChild(metadata.cloneNode(True), incoming)
+                # A pure preset change can be applied to the existing PowerPoint object.
+                # Serialize in slide context so prefixes inherited from the root resolve.
+                def signature(shape):
+                    wrapper = slide.documentElement.cloneNode(False)
+                    wrapper.appendChild(shape.cloneNode(True))
+                    node = ElementTree.fromstring(wrapper.toxml())[0]
+                    geometry = node.find(f"{{{P}}}spPr/{{{A}}}prstGeom")
+                    if geometry is None or any(child.tag != f"{{{A}}}avLst" or len(child) for child in geometry):
+                        return None, None
+                    return geometry.attrib.pop("prst", None), drawing_signature(node)
+                old, old_signature = signature(target)
+                new, new_signature = signature(replacement)
+                if old and new and old != new and old_signature == new_signature:
+                    key = next(key for key, value in native_shape_index(tree).items() if value == replace_id)
+                    preset_target = json.dumps(key, ensure_ascii=False, separators=(",", ":"))
                 tree.replaceChild(replacement, target)
             for member in original.infolist():
                 data = slide.toxml(encoding="utf-8") if member.filename == part else original.read(member)
@@ -186,7 +202,8 @@ def stage(source, part, fragment, output, replace_id=None):
         os.link(candidate, output)
         identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
         return {"operation": "insert" if replace_id is None else "replace",
-                "shapeID": int(identity.getAttribute("id")), "name": identity.getAttribute("name")}
+                "shapeID": int(identity.getAttribute("id")), "name": identity.getAttribute("name"),
+                **({"presetTarget": preset_target} if preset_target else {})}
 
 
 def native_acceptance(tree, replace_id, drawing, current, summary):

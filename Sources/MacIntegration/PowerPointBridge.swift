@@ -30,13 +30,15 @@ public enum PowerPointBridge {
         return result
     }
 
-    public static func insertStagedShape(from directory: URL, into baseline: SlideSnapshot) throws -> SlideSnapshot {
+    public static func applyStagedShape(from directory: URL, into baseline: SlideSnapshot) throws -> SlideSnapshot {
         struct Target: Decodable {
             let operation: String
             let page, slideID: Int
             let name, candidateSHA256: String
+            let presetTarget: String?
         }
         struct NativeInsert: Encodable {
+            let presetTarget: String?
             let path, name: String
             let page: Int
         }
@@ -46,7 +48,8 @@ public enum PowerPointBridge {
         }
         let target = try JSONDecoder().decode(Target.self, from: Data(contentsOf: directory.appendingPathComponent("target.json")))
         let candidate = try Data(contentsOf: directory.appendingPathComponent("after.pptx"), options: .mappedIfSafe)
-        guard target.operation == "insert", target.slideID == baseline.slideID, target.page > 0,
+        let canChangePreset = target.operation == "replace" && baseline.objects.contains { $0.id == target.presetTarget && $0.autoShapeType != nil }
+        guard (target.operation == "insert" || canChangePreset), target.slideID == baseline.slideID, target.page > 0,
               SHA256.hash(data: candidate).map({ String(format: "%02x", $0) }).joined() == target.candidateSHA256 else {
             throw BridgeFailure("建议副本已变化，请重新生成预览。")
         }
@@ -57,7 +60,7 @@ public enum PowerPointBridge {
         let copy = folder.appendingPathComponent(name + ".pptx")
         try candidate.write(to: copy)
         let request = folder.appendingPathComponent("request.json")
-        try JSONEncoder().encode(Request(baseline: baseline, nativeInsert: NativeInsert(path: copy.path, name: target.name, page: target.page))).write(to: request)
+        try JSONEncoder().encode(Request(baseline: baseline, nativeInsert: NativeInsert(presetTarget: canChangePreset ? target.presetTarget : nil, path: copy.path, name: target.name, page: target.page))).write(to: request)
         guard let result = try run(["apply", request.path]) else { throw BridgeFailure("幻灯片已关闭。") }
         return result
     }

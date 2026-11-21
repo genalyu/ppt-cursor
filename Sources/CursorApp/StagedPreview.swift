@@ -41,9 +41,9 @@ enum StagedPreview {
         panel.contentView = view
         panel.orderFrontRegardless()
         let proposal = try? JSONDecoder().decode(Prediction.self, from: Data(contentsOf: directory.appendingPathComponent("accept.json")))
-        struct Target: Decodable { let operation: String }
+        struct Target: Decodable { let operation: String; let presetTarget: String? }
         let target = try? JSONDecoder().decode(Target.self, from: Data(contentsOf: directory.appendingPathComponent("target.json")))
-        let direct = proposal != nil || target?.operation == "insert"
+        let direct = proposal != nil || target?.operation == "insert" || baseline.objects.contains { $0.id == target?.presetTarget && $0.autoShapeType != nil }
         var displayedWindow = window
         var displayedPage = frame
         var submitted = false
@@ -107,7 +107,7 @@ enum StagedPreview {
             DispatchQueue.global(qos: .userInitiated).async {
                 let result = Result {
                     if let proposal { return try PowerPointBridge.apply(proposal, to: baseline) }
-                    return try PowerPointBridge.insertStagedShape(from: directory, into: baseline)
+                    return try PowerPointBridge.applyStagedShape(from: directory, into: baseline)
                 }
                 DispatchQueue.main.async {
                     switch result {

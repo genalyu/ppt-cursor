@@ -41,13 +41,13 @@ guard let before = try PowerPointBridge.capture(),
       URL(fileURLWithPath: before.document).resolvingSymlinksInPath() == doc.resolvingSymlinksInPath() else {
     fatalError("Test presentation must be active")
 }
-let after = try PowerPointBridge.insertStagedShape(from: folder, into: before)
+let after = try PowerPointBridge.applyStagedShape(from: folder, into: before)
 precondition(after.objects.dropLast().elementsEqual(before.objects))
 let shape = after.objects.last!
 precondition(shape.autoShapeType == "autoshape chevron" && shape.solidFillRGB == [83,112,234])
 precondition(abs(shape.x - 1200000 / 12700.0) < 0.01 && abs(shape.y - 2000000 / 12700.0) < 0.01)
 do {
-    _ = try PowerPointBridge.insertStagedShape(from: folder, into: before)
+    _ = try PowerPointBridge.applyStagedShape(from: folder, into: before)
     fatalError("Repeated acceptance modified a stale slide")
 } catch {
     guard error.localizedDescription.contains("Slide changed since preview") else { throw error }
