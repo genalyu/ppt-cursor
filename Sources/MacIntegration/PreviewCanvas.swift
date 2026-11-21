@@ -80,7 +80,7 @@ public final class PreviewCanvas: NSView {
                 NSColor.systemTeal.withAlphaComponent(0.19).setFill()
                 rect.fill()
                 let original = slide.objects.first { $0.id == edit.id }
-                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: original?.fontSize)
+                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
             }
             let outline = NSBezierPath(rect: rect)
             outline.lineWidth = 2 / scale

@@ -47,6 +47,12 @@
           },
           "duplicate": {
             "type": "boolean"
+          },
+          "fontSize": {
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "required": [
@@ -54,7 +60,8 @@
           "placement",
           "rotation",
           "text",
-          "duplicate"
+          "duplicate",
+          "fontSize"
         ],
         "additionalProperties": false
       }

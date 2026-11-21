@@ -83,7 +83,7 @@ function run(args) {
         if (index < 0) throw Error("Missing target");
         return {shape: slide.shapes[index], original: baseline.objects[index], edit};
     });
-    function write(shape, p, rotation, text) {
+    function write(shape, p, rotation, text, fontSize) {
         // PowerPoint couples both dimensions when aspect locking is enabled. Write the
         // previewed geometry as a pair, then restore the editor's original lock setting.
         const close = (a, b) => Math.abs(a - b) <= 0.02;
@@ -94,6 +94,9 @@ function run(args) {
             if (text != null && String(shape.textFrame.textRange.content()) !== text) {
                 shape.textFrame.textRange.content = text;
             }
+            if (fontSize != null && !close(shape.textFrame.textRange.font.fontSize(), fontSize)) {
+                shape.textFrame.textRange.font.fontSize = fontSize;
+            }
             if (!close(shape.width(), p.width)) shape.width = p.width;
             if (!close(shape.height(), p.height)) shape.height = p.height;
             if (!close(shape.rotation(), rotation)) shape.rotation = rotation;
@@ -102,6 +105,7 @@ function run(args) {
         } finally {
             if (locked) shape.lockAspectRatio = true;
         }
+        if (fontSize != null && !close(shape.textFrame.textRange.font.fontSize(), fontSize)) throw Error("字号与预览不符");
         const angleDifference = ((shape.rotation() - rotation) % 360 + 540) % 360 - 180;
         if (!close(shape.width(), p.width) || !close(shape.height(), p.height) ||
             !close(shape.leftPosition(), p.x) || !close(shape.top(), p.y) || !close(angleDifference, 0)) {
@@ -151,7 +155,7 @@ function run(args) {
             if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增对象");
             const shape = slide.shapes[count];
             inserted.push(shape);
-            write(shape, asset.placement, asset.rotation || 0, asset.text);
+            write(shape, asset.placement, asset.rotation || 0, asset.text, asset.fontSize);
         } finally {
             if (vectorURL) $.NSFileManager.defaultManager.removeItemAtURLError(vectorURL, null);
             if (board.changeCount === version) {
@@ -168,7 +172,7 @@ function run(args) {
         }
         for (const change of changes.filter(change => !change.edit.duplicate)) {
             started.push(change);
-            write(change.shape, change.edit.placement, change.edit.rotation, change.edit.text);
+            write(change.shape, change.edit.placement, change.edit.rotation, change.edit.text, change.edit.fontSize);
         }
         for (const asset of proposal.artwork) pasteArtwork(asset);
     } catch (error) {
@@ -177,7 +181,7 @@ function run(args) {
             try { app.delete(shape); } catch (_) { failed.push("新增素材"); }
         }
         for (const change of started.reverse()) {
-            try { write(change.shape, change.original, change.original.rotation, change.original.text); }
+            try { write(change.shape, change.original, change.original.rotation, change.original.text, change.edit.fontSize == null ? null : change.original.fontSize); }
             catch (_) { failed.push(change.original.name); }
         }
         if (failed.length) throw Error("Apply failed; could not restore: " + failed.join(", "));
