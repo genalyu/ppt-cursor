@@ -183,6 +183,19 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 }
 
+// Runs through the packaged resource path and native automation bridge without logging slide content.
+if CommandLine.arguments.dropFirst().elementsEqual(["--check-powerpoint"]) {
+    do {
+        if let slide = try PowerPointBridge.capture() {
+            print("Connected: slide \(slide.slideID), \(slide.objects.count) objects, \(slide.width) × \(slide.height) pt")
+        } else { print("Connected: no active slide.") }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        exit(1)
+    }
+}
+
 let application = NSApplication.shared
 let controller = Controller()
 application.setActivationPolicy(.accessory)
