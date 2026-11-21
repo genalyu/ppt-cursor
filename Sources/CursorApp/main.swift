@@ -482,7 +482,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
             self?.hideDuringCanvasDrag()
         }
-        let shortcutLabel = shortcut.enable(useTab: useTab) ? (useTab ? "Tab" : "⌥⌘↩") : nil
+        let registerTab = useTab && state.editingText == false
+        let shortcutLabel = shortcut.enable(useTab: registerTab) ? (registerTab ? "Tab" : "⌥⌘↩") : nil
         let controls = SuggestionPanel(summary: prediction.summary, shortcutLabel: shortcutLabel,
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
         suggestionPanel = controls

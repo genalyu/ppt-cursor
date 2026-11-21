@@ -72,7 +72,8 @@ function snapshot() {
     });
     const selectedIDs = [];
     const selection = powerpoint.activeWindow.selection;
-    if (selection.selectionType() === "selection type shapes") {
+    const selectionType = selection.selectionType();
+    if (selectionType === "selection type shapes") {
         const selected = selection.shapeRange.shapes;
         for (let i = 0; i < selected.length; i++) {
             const item = selected[i];
@@ -86,6 +87,7 @@ function snapshot() {
         }
     }
     return JSON.stringify({
+        editingText: selectionType === "selection type text",
         viewZoom: powerpoint.activeWindow.view.zoom(), selectedIDs,
         document: String(presentation.fullName() || presentation.name()),
         slideID: slide.slideID(), width: page.slideWidth(), height: presentation.slideMaster.height(), objects
@@ -109,6 +111,7 @@ function run(args) {
     const baseline = JSON.parse(snapshot());
     for (const object of request.baseline.objects) { if (object.text === undefined) object.text = null; }
     if (baseline && request.baseline.selectedIDs === undefined) delete baseline.selectedIDs;
+    if (baseline && request.baseline.editingText === undefined) delete baseline.editingText;
     if (baseline && request.baseline.viewZoom === undefined) delete baseline.viewZoom;
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
     const proposal = request.proposal;
