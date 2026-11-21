@@ -34,7 +34,7 @@ final class AcceptShortcut {
         registrationID &+= 1
         return RegisterEventHotKey(UInt32(useTab ? kVK_Tab : kVK_Return), useTab ? 0 : UInt32(optionKey | cmdKey),
                                    EventHotKeyID(signature: 0x50505443, id: registrationID),
-                                   GetApplicationEventTarget(), 0, &key) == noErr
+                                   GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &key) == noErr
     }
     func disable() { if let key { UnregisterEventHotKey(key); self.key = nil } }
     deinit { disable(); if let handler { RemoveEventHandler(handler) } }

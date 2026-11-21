@@ -41,12 +41,20 @@ precondition(count == 2)
 shortcut.disable()
 send(id: 2)
 precondition(count == 2, "Released Tab still dispatched")
-var reserved: EventHotKeyRef?
-precondition(RegisterEventHotKey(UInt32(kVK_Tab), 0, EventHotKeyID(signature: 123, id: 1),
-                                GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &reserved) == noErr)
-precondition(shortcut.registerPreferred(useTab: true) == "⌥⌘↩")
-shortcut.disable()
-UnregisterEventHotKey(reserved)
+for flags in [UInt32(0), UInt32(kEventHotKeyExclusive)] {
+    var reserved: EventHotKeyRef?
+    precondition(RegisterEventHotKey(UInt32(kVK_Tab), 0, EventHotKeyID(signature: 123, id: 1),
+                                    GetApplicationEventTarget(), flags, &reserved) == noErr)
+    precondition(shortcut.registerPreferred(useTab: true) == "⌥⌘↩")
+    shortcut.disable()
+    var alternate: EventHotKeyRef?
+    precondition(RegisterEventHotKey(UInt32(kVK_Return), UInt32(optionKey | cmdKey),
+                                    EventHotKeyID(signature: 123, id: 2), GetApplicationEventTarget(),
+                                    flags, &alternate) == noErr)
+    precondition(shortcut.registerPreferred(useTab: true) == nil)
+    UnregisterEventHotKey(alternate)
+    UnregisterEventHotKey(reserved)
+}
 precondition(shortcut.registerPreferred(useTab: true) == "Tab")
 shortcut.disable()
 print("Carbon registration, routing, filtering and release passed")
