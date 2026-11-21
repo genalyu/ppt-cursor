@@ -184,7 +184,7 @@ def stage(source, part, fragment, output, replace_id=None):
                     raise ValueError("Replacement requires a top-level native shape")
                 incoming, = replacement.getElementsByTagNameNS(P, "nvSpPr")
                 replacement.replaceChild(metadata.cloneNode(True), incoming)
-                # A pure preset change can be applied to the existing PowerPoint object.
+                # Preset and placement can be changed together on the original PowerPoint object.
                 # Serialize in slide context so prefixes inherited from the root resolve.
                 def signature(shape):
                     wrapper = slide.documentElement.cloneNode(False)
@@ -193,6 +193,15 @@ def stage(source, part, fragment, output, replace_id=None):
                     geometry = node.find(f"{{{P}}}spPr/{{{A}}}prstGeom")
                     if geometry is None or any(child.tag != f"{{{A}}}avLst" or len(child) for child in geometry):
                         return None, None
+                    transform = node.find(f"{{{P}}}spPr/{{{A}}}xfrm")
+                    if transform is not None:
+                        transform.attrib.pop("rot", None)
+                        for tag, attributes in (("off", ("x", "y")), ("ext", ("cx", "cy"))):
+                            element = transform.find(f"{{{A}}}{tag}")
+                            if element is None or any(attr not in element.attrib for attr in attributes):
+                                return None, None
+                            for attr in attributes:
+                                del element.attrib[attr]
                     return geometry.attrib.pop("prst", None), drawing_signature(node)
                 old, old_signature = signature(target)
                 new, new_signature = signature(replacement)

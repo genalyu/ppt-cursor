@@ -269,21 +269,27 @@ function run(args) {
             const original = snapshot();
             app.open(Path(native.path));
             const deck = app.presentations.byName(native.path.split("/").pop());
-            let preset;
+            let preset, placement;
             try {
                 const source = deck.slides[native.page - 1].shapes[index];
                 if (source.name() !== native.name) throw Error("建议图形与预览不符");
                 preset = source.autoShapeType();
+                placement = {x: source.leftPosition(), y: source.top(), width: source.width(),
+                             height: source.height(), rotation: source.rotation()};
             } finally { deck.close({saving: "no"}); }
             if (!app.frontmost() || snapshot() !== original) throw Error("原幻灯片状态已变化");
             const shape = slide.shapes[index], previous = shape.autoShapeType();
             try {
                 shape.autoShapeType = preset;
-                const expected = JSON.parse(original);
+                write(shape, placement, placement.rotation);
+                const expected = JSON.parse(original), actual = JSON.parse(snapshot());
+                // write() has verified native point and rotation tolerances.
+                for (const key of Object.keys(placement)) expected.objects[index][key] = actual.objects[index][key];
                 expected.objects[index].autoShapeType = String(preset);
-                if (!sameState(JSON.parse(snapshot()), expected)) throw Error("更换形状后的属性与预览不符");
+                if (!sameState(actual, expected)) throw Error("更换形状后的属性与预览不符");
             } catch (error) {
                 shape.autoShapeType = previous;
+                write(shape, baseline.objects[index], baseline.objects[index].rotation);
                 throw error;
             }
         } else if (request.nativeInsert) {
