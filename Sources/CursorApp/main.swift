@@ -398,8 +398,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.ignoresMouseEvents = true
         panel.level = .floating
         let moving = Set(prediction.edits.map(\.id))
-        let hasPicture = state.objects.contains { moving.contains($0.id) && $0.kind == "shape type picture" }
-        let localPage = hasPicture ? calibratedWindow.flatMap {
+        let needsAppearance = state.objects.contains { moving.contains($0.id) && PreviewCanvas.supportsAppearancePreview($0) }
+        let localPage = needsAppearance ? calibratedWindow.flatMap {
             PageLocator.pageImage(in: $0, expected: frame, aspect: state.width / state.height)
         } : nil
         panel.contentView = PreviewCanvas(slide: state, suggestion: prediction, frame: NSRect(origin: .zero, size: frame.size), diagnosticBackground: false, images: images, pageImage: localPage)

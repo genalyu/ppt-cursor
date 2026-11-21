@@ -17,6 +17,10 @@ public final class PreviewCanvas: NSView {
         self.diagnosticBackground = diagnosticBackground
         super.init(frame: frame)
     }
+    public static func supportsAppearancePreview(_ object: SlideObject) -> Bool {
+        object.rotation == 0 && (object.kind == "shape type picture" || object.kind == "shape type group")
+    }
+
     private static func extractPictures(slide: SlideSnapshot, suggestion: Prediction, from page: CGImage?) -> [String: NSImage] {
         guard let page, slide.width > 0, slide.height > 0 else { return [:] }
         let sx = CGFloat(page.width) / slide.width, sy = CGFloat(page.height) / slide.height
@@ -24,10 +28,15 @@ public final class PreviewCanvas: NSView {
         let targets = Set(suggestion.edits.filter { $0.text == nil }.map(\.id))
         var result: [String: NSImage] = [:]
         for (index, object) in slide.objects.enumerated() where targets.contains(object.id) {
-            guard object.kind == "shape type picture", object.rotation == 0 else { continue }
+            guard supportsAppearancePreview(object) else { continue }
             let rect = CGRect(x: object.x, y: object.y, width: object.width, height: object.height)
             guard bounds.contains(rect), rect.width > 0, rect.height > 0 else { continue }
-            let covered = slide.objects.dropFirst(index + 1).contains { other in
+            // Groups can have transparent gaps. An intersecting shape behind the group
+            // would otherwise appear to move with it in the cropped preview.
+            let neighbors = slide.objects.enumerated().filter { offset, _ in
+                object.kind == "shape type group" ? offset != index : offset > index
+            }
+            let covered = neighbors.contains { _, other in
                 let angle = other.rotation * .pi / 180
                 let w = abs(cos(angle)) * other.width + abs(sin(angle)) * other.height
                 let h = abs(sin(angle)) * other.width + abs(cos(angle)) * other.height
