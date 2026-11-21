@@ -272,6 +272,7 @@ def watch_preview(source, destination):
                 predict_preview(source, str(state["slideID"]), history_file, candidate)
                 if candidate.exists():
                     if capture() == state:
+                        (candidate / "baseline.json").write_text(json.dumps(state))
                         destination.mkdir()
                         try:
                             for item in candidate.iterdir():
@@ -291,8 +292,11 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description=watch_preview.__doc__)
         parser.add_argument("source", type=Path)
         parser.add_argument("output", type=Path)
+        parser.add_argument("--canvas", type=Path, metavar="PPT_CURSOR_BINARY", help="Display the verified change overlay over the live slide")
         args = parser.parse_args(sys.argv[2:])
         watch_preview(args.source, args.output)
+        if args.canvas:
+            subprocess.run([str(args.canvas.resolve()), "--show-staged-preview", str(args.output.resolve())], check=True)
         raise SystemExit(0)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)

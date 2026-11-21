@@ -538,6 +538,15 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 }
 
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--show-staged-preview" {
+    do { try StagedPreview.display(directory: URL(fileURLWithPath: CommandLine.arguments[2])) }
+    catch {
+        FileHandle.standardError.write(Data(("无法显示当前页预览：" + error.localizedDescription + "\n").utf8))
+        exit(1)
+    }
+    exit(0)
+}
+
 // Runs through the packaged resource path and native automation bridge without logging slide content.
 if CommandLine.arguments.dropFirst().elementsEqual(["--check-canvas"]) {
     guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first,
