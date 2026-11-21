@@ -93,6 +93,20 @@ def stage(source, part, fragment, output, replace_id=None):
         os.link(candidate, output)
 
 
+def write_overlay(before_file, after_file, output):
+    from PIL import Image, ImageChops
+
+    with Image.open(before_file) as before, Image.open(after_file) as after:
+        if before.size != after.size:
+            raise ValueError("Slide dimensions changed between renders")
+        result = after.convert("RGB")
+        delta = ImageChops.difference(before.convert("RGB"), result)
+        red, green, blue = delta.split()
+        changed = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        result.putalpha(changed.point(lambda value: 255 if value else 0))
+        result.save(output)
+
+
 def render_pair(source, slide_id, fragment, destination, replace_id):
     """Render both states from one baseline, without taking focus from PowerPoint."""
     office = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
@@ -118,6 +132,7 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
             subprocess.run(["pdftoppm", "-f", str(pages[0]), "-l", str(pages[0]), "-singlefile",
                             "-scale-to", "1600", "-png", str(scratch / (name + ".pdf")),
                             str(result / name)], check=True, timeout=30)
+        write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
         destination.mkdir()
         try:
             for item in result.iterdir():
@@ -134,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("fragment", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
-    parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png and after.pptx to a new output directory (LibreOffice and pdftoppm required)")
+    parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png, overlay.png and after.pptx to a new output directory (LibreOffice, pdftoppm and Pillow required)")
     args = parser.parse_args()
     operation = render_pair if args.render_pair else stage
     operation(args.source, args.slide_part, args.fragment, args.output, args.replace_id)
