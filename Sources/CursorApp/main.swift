@@ -114,7 +114,13 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func dismiss() { invalidate(); message("已忽略，继续编辑即可") }
+    @objc private func dismiss() {
+        if let (state, suggestion) = pending ?? hiddenSuggestion {
+            history.recordDismissal(suggestion.summary, on: state)
+        }
+        invalidate()
+        message("已忽略，继续编辑即可")
+    }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
         if !monitoring && frame == nil { calibrate(); return }

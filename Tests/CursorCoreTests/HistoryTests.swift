@@ -47,6 +47,19 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(String(decoding: data, as: UTF8.self).components(separatedBy: "Background").count, 2)
     }
 
+    func testDismissalsFollowRecentEditsOnOneSlide() {
+        var history = EditHistory(limit: 3)
+        _ = history.observe(snapshot(0))
+        history.recordDismissal("Move left", on: snapshot(0))
+        XCTAssertEqual(history.observe(snapshot(1))?.recentlyDismissed, ["Move left"])
+        XCTAssertNil(history.observe(snapshot(1)))
+        XCTAssertEqual(history.observe(snapshot(2))?.recentlyDismissed, ["Move left"])
+        XCTAssertEqual(history.observe(snapshot(3))?.recentlyDismissed, [])
+        history.recordDismissal("Move right", on: snapshot(3))
+        XCTAssertNil(history.observe(snapshot(3, slide: 2)))
+        XCTAssertEqual(history.observe(snapshot(4, slide: 2))?.recentlyDismissed, [])
+    }
+
     func testDocumentIdentityStaysLocal() throws {
         let path = "/Users/example/Private/Quarterly.pptx"
         let current = snapshot(12, document: path)

@@ -22,6 +22,7 @@ public struct SlideSnapshot: Codable, Equatable, Sendable {
 public struct EditContext: Encodable, Sendable {
     public let previous: [SlideSnapshot]
     public let current: SlideSnapshot
+    public var recentlyDismissed: [String] = []
 
     private struct Transition: Encodable {
         let before, after: [SlideObject]
@@ -45,7 +46,7 @@ public struct EditContext: Encodable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case current, transitions }
+    private enum CodingKeys: String, CodingKey { case current, transitions, recentlyDismissed }
 
     private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs }
 
@@ -56,6 +57,7 @@ public struct EditContext: Encodable, Sendable {
         try page.encode(current.height, forKey: .height)
         try page.encode(current.objects, forKey: .objects)
         try page.encodeIfPresent(current.selectedIDs, forKey: .selectedIDs)
+        if !recentlyDismissed.isEmpty { try output.encode(recentlyDismissed, forKey: .recentlyDismissed) }
         let states = previous + [current]
         let transitions = zip(states, states.dropFirst()).map { Transition(from: $0, to: $1) }
         try output.encode(transitions, forKey: .transitions)
@@ -65,6 +67,7 @@ public struct EditContext: Encodable, Sendable {
 /// Geometry, content and stacking order are part of the baseline used to reject stale suggestions.
 public struct EditHistory: Sendable {
     private var states: [SlideSnapshot] = []
+    private var dismissed: [(summary: String, remaining: Int)] = []
     private let limit: Int
 
     public init(limit: Int = 8) {
@@ -73,11 +76,22 @@ public struct EditHistory: Sendable {
 
     public var current: SlideSnapshot? { states.last }
 
-    public mutating func reset() { states.removeAll() }
+    public mutating func reset() {
+        states.removeAll()
+        dismissed.removeAll()
+    }
+
+    public mutating func recordDismissal(_ summary: String, on baseline: SlideSnapshot) {
+        guard baseline == current, !summary.isEmpty else { return }
+        dismissed.removeAll { $0.summary == summary }
+        dismissed.append((summary, limit - 1))
+        if dismissed.count > limit { dismissed.removeFirst() }
+    }
 
     /// Initial observation seeds history. Only a real change on the same slide starts prediction.
     public mutating func observe(_ state: SlideSnapshot) -> EditContext? {
         guard let last = current, last.document == state.document, last.slideID == state.slideID else {
+            dismissed.removeAll()
             states = [state]
             return nil
         }
@@ -89,6 +103,10 @@ public struct EditHistory: Sendable {
         }
         states.append(state)
         if states.count > limit { states.removeFirst(states.count - limit) }
-        return EditContext(previous: Array(states.dropLast()), current: state)
+        let context = EditContext(previous: Array(states.dropLast()), current: state,
+                                  recentlyDismissed: dismissed.map(\.summary))
+        for index in dismissed.indices { dismissed[index].remaining -= 1 }
+        dismissed.removeAll { $0.remaining == 0 }
+        return context
     }
 }
