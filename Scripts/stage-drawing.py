@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from xml.dom import Node, minidom
 from xml.etree import ElementTree
 from zipfile import ZipFile
@@ -242,7 +243,57 @@ def predict_preview(source, selector, history_file, output):
         print(proposal["summary"])
 
 
+def watch_preview(source, destination):
+    """Wait for a settled object edit in this open document, then render one current proposal."""
+    script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
+    def capture():
+        data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script)], timeout=20)
+        state = json.loads(data)
+        if state and Path(state["document"]).resolve() == source.resolve():
+            return state
+        return None
+
+    history = []
+    with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
+        scratch = Path(directory)
+        while True:
+            state = capture()
+            if not state:
+                history.clear()
+            elif not history or history[-1]["slideID"] != state["slideID"]:
+                history = [state]
+            elif history[-1]["objects"] != state["objects"]:
+                history = history[-7:] + [state]
+            elif len(history) > 1:
+                history[-1] = state
+                history_file = scratch / "history.json"
+                history_file.write_text(json.dumps(history))
+                candidate = scratch / "preview"
+                predict_preview(source, str(state["slideID"]), history_file, candidate)
+                if candidate.exists():
+                    if capture() == state:
+                        destination.mkdir()
+                        try:
+                            for item in candidate.iterdir():
+                                item.rename(destination / item.name)
+                        except BaseException:
+                            shutil.rmtree(destination)
+                            raise
+                        return
+                    shutil.rmtree(candidate)
+                history = [state]
+            time.sleep(0.5)
+
+
 if __name__ == "__main__":
+    import sys
+    if sys.argv[1:2] == ["watch"]:
+        parser = argparse.ArgumentParser(description=watch_preview.__doc__)
+        parser.add_argument("source", type=Path)
+        parser.add_argument("output", type=Path)
+        args = parser.parse_args(sys.argv[2:])
+        watch_preview(args.source, args.output)
+        raise SystemExit(0)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("slide_part", help="Live PowerPoint slideID or explicit PPTX slide part")
