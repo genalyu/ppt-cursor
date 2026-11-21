@@ -10,7 +10,7 @@ final class SetupWindow: NSWindow {
         isReleasedWhenClosed = false
         let heading = NSTextField(labelWithString: "在 PowerPoint 中预览下一步")
         heading.font = .systemFont(ofSize: 21, weight: .semibold)
-        let help = NSTextField(wrappingLabelWithString: "打开要编辑的幻灯片，然后沿页面边缘框选画布。编辑时按 ⌥⌘Return 采纳建议。")
+        let help = NSTextField(wrappingLabelWithString: "打开要编辑的幻灯片，点击下方按钮定位画布。进入框选模式时，沿页面边缘拖出矩形。按 ⌥⌘Return 采纳建议。")
         help.textColor = .secondaryLabelColor
         let start = NSButton(title: "定位画布并开始", target: owner, action: calibrate)
         start.keyEquivalent = "\r"

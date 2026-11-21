@@ -7,7 +7,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "先打开 PowerPoint，定位幻灯片画布", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(calibrate), chooseImages: #selector(chooseImages))
+    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), chooseImages: #selector(chooseImages))
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?
@@ -16,6 +16,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var history = EditHistory()
     private var monitoring = false
     private var reading = false
+    private var locating = false
     private var inference: PredictionRun?
     private var applying = false
     private var waiting: EditContext?
@@ -107,6 +108,36 @@ final class Controller: NSObject, NSApplicationDelegate {
             images = imported
             message("已载入 " + String(imported.count) + " 张素材")
         } catch { message(error.localizedDescription) }
+    }
+
+    @objc private func startEditing() {
+        guard !locating else { return }
+        guard CGPreflightScreenCaptureAccess() else { calibrate(); return }
+        guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first,
+              let window = PowerPointWindow.front(of: ppt) else { calibrate(); return }
+        locating = true
+        message("正在读取页面尺寸。若系统询问，请允许控制 PowerPoint。")
+        ppt.activate(options: [])
+        DispatchQueue.global(qos: .userInitiated).async {
+            let slide = try? PowerPointBridge.capture()
+            DispatchQueue.main.async {
+                self.locating = false
+                self.setup.orderOut(nil)
+                guard let slide, let current = PowerPointWindow.front(of: ppt),
+                      current.id == window.id, slide.height > 0,
+                      let page = PageLocator.locate(in: current, aspect: slide.width / slide.height) else {
+                    self.calibrate()
+                    return
+                }
+                self.invalidate()
+                self.frame = page
+                self.calibratedWindow = current
+                self.history.reset()
+                self.monitoring = true
+                self.toggle.title = "暂停预测"
+                self.message("已定位画布，等待编辑")
+            }
+        }
     }
 
     @objc private func calibrate() {
@@ -259,6 +290,14 @@ final class Controller: NSObject, NSApplicationDelegate {
 }
 
 // Runs through the packaged resource path and native automation bridge without logging slide content.
+if CommandLine.arguments.dropFirst().elementsEqual(["--check-canvas"]) {
+    guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first,
+          let window = PowerPointWindow.front(of: ppt), let slide = try? PowerPointBridge.capture(),
+          let rect = PageLocator.locate(in: window, aspect: slide.width / slide.height) else { exit(1) }
+    print("Window: \(window.frame), page: \(rect)")
+    exit(0)
+}
+
 if CommandLine.arguments.dropFirst().elementsEqual(["--check-powerpoint"]) {
     do {
         if let slide = try PowerPointBridge.capture() {
