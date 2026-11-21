@@ -235,9 +235,10 @@ def write_overlay(before_file, after_file, output):
         changed = ImageChops.lighter(ImageChops.lighter(red, green), blue)
         result.putalpha(changed.point(lambda value: 255 if value else 0))
         result.save(output)
+        return changed.getbbox() is not None
 
 
-def render_pair(source, slide_id, fragment, destination, replace_id):
+def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False):
     """Render both states from one baseline, without taking focus from PowerPoint."""
     office = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
     with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
@@ -274,7 +275,9 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
                 command = ["/usr/bin/sips", "-s", "format", "png", "-Z", "1600", pdf,
                            "--out", str(result / (name + ".png"))]
             subprocess.run(command, check=True, timeout=30)
-        write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
+        visible = write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
+        if require_visible and not visible:
+            return False
         destination.mkdir()
         try:
             for item in result.iterdir():
@@ -282,6 +285,7 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
         except BaseException:
             shutil.rmtree(destination)
             raise
+        return True
 
 
 def sync_live_text(slide, shape, current_text):
@@ -437,7 +441,9 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
             return
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
-        render_pair(baseline, selector, fragment, output, proposal["replaceID"])
+        if not render_pair(baseline, selector, fragment, output, proposal["replaceID"], require_visible=True):
+            print("No visible change.")
+            return
         (output / "summary.txt").write_text(proposal["summary"])
         acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if acceptance:
