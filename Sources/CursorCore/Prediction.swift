@@ -83,7 +83,13 @@ extension Prediction {
             return Artwork(placement: fit, referenceID: id, svg: art.svg)
         }
         let sources = Dictionary(slide.objects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let edits = suggestion.edits.filter { edit in
+        let normalized = suggestion.edits.map { edit in
+            let nativeText = edit.text?.replacingOccurrences(of: "\r\n", with: "\r")
+                .replacingOccurrences(of: "\n", with: "\r")
+            return ObjectEdit(id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
+                              placement: edit.placement, rotation: edit.rotation, text: nativeText)
+        }
+        let edits = normalized.filter { edit in
             guard edit.duplicate != true, let source = sources[edit.id] else { return true }
             let box = edit.placement
             return box.x != source.x || box.y != source.y || box.width != source.width ||

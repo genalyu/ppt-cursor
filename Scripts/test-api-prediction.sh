@@ -11,6 +11,7 @@ import CursorCore
 
 final class MockAPI: URLProtocol {
     static var unchanged = false
+    static var overrideSuggestion: String?
     static var malformed = false
     static var code = 200
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -41,7 +42,7 @@ final class MockAPI: URLProtocol {
         precondition(content[2]["image_url"] == "data:image/png;base64,Ag==")
         let suggestion = #"{"summary":"Align","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0,"text":null}],"artwork":[]}"#
         let output = Self.unchanged ? suggestion.replacingOccurrences(of: #""x":5,"y":5"#, with: #""x":2,"y":0"#) : suggestion
-        let payload: [String: Any] = ["status": "completed", "output": [["type": "message", "content": [["type":"output_text","text":Self.malformed ? "broken" : output]]]]]
+        let payload: [String: Any] = ["status": "completed", "output": [["type": "message", "content": [["type":"output_text","text":Self.malformed ? "broken" : (Self.overrideSuggestion ?? output)]]]]]
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: Self.code, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: payload))
         client?.urlProtocolDidFinishLoading(self)
@@ -49,9 +50,10 @@ final class MockAPI: URLProtocol {
     override func stopLoading() {}
 }
 
-func state(_ x: Int) throws -> SlideSnapshot {
+func state(_ x: Int, multiline: Bool = false) throws -> SlideSnapshot {
     let object = #"{"document":"fixture","slideID":1,"width":100,"height":100,"objects":[{"id":"a","name":"A","kind":"rect","x":X,"y":0,"width":10,"height":10,"rotation":0}]}"#
-    return try JSONDecoder().decode(SlideSnapshot.self, from: Data(object.replacingOccurrences(of:"X",with:String(x)).utf8))
+    let page = multiline ? object.replacingOccurrences(of: #""kind":"rect""#, with: #""kind":"rect","text":"A\rB""#) : object
+    return try JSONDecoder().decode(SlideSnapshot.self, from: Data(page.replacingOccurrences(of:"X",with:String(x)).utf8))
 }
 var history = EditHistory()
 _ = try history.observe(state(0))
@@ -67,6 +69,15 @@ MockAPI.unchanged = true
 let unchanged = try model.predict(context, images: [image], currentPage: Data([1]))
 precondition(unchanged.edits.isEmpty && unchanged.artwork.isEmpty)
 MockAPI.unchanged = false
+var textHistory = EditHistory()
+_ = try textHistory.observe(state(0, multiline: true))
+let textContext = try textHistory.observe(state(2, multiline: true))!
+for separator in [#"\n"#, #"\r\n"#] {
+    MockAPI.overrideSuggestion = #"{"summary":"Text","edits":[{"id":"a","placement":{"x":2,"y":0,"width":10,"height":10},"rotation":0,"text":"A"# + separator + #"B"}],"artwork":[]}"#
+    let same = try model.predict(textContext, images: [image], currentPage: Data([1]))
+    precondition(same.edits.isEmpty)
+}
+MockAPI.overrideSuggestion = nil
 let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
 let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
 do { try combination.validate(for: context.current); fatalError("Accepted text on a non-text object") }
