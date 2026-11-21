@@ -2,6 +2,12 @@
 function snapshot() {
     const powerpoint = Application("com.microsoft.Powerpoint");
     if (!powerpoint.running() || !powerpoint.presentations.length) return "null";
+    const shows = powerpoint.slideShowWindows;
+    for (let i = 0; i < shows.length; i++) {
+        if (shows[i].active()) return "null";
+    }
+    const viewType = powerpoint.activeWindow.viewType();
+    if (viewType !== "normal view" && viewType !== "slide view") return "null";
     const presentation = powerpoint.activePresentation;
     if (!presentation.slides.length) return "null";
     const index = powerpoint.activeWindow.view.slide.slideIndex();
