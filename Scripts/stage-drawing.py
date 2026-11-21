@@ -635,6 +635,10 @@ def slide_content(state):
     return state.get("width"), state.get("height"), state["objects"]
 
 
+def object_structure(state):
+    return [(obj["id"], obj.get("kind"), obj.get("autoShapeType")) for obj in state["objects"]]
+
+
 def refreshed_snapshot(previous, current):
     if "acceptedSuggestion" in previous:
         return dict(current, acceptedSuggestion=previous["acceptedSuggestion"])
@@ -865,6 +869,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             return state
         return None
 
+    accepted_pages = {}
     recent_pages = {}
     history = []
     last_prediction = None
@@ -881,6 +886,9 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             if not state:
                 history.clear()
                 recent_pages.clear()
+                for copy, _, _ in accepted_pages.values():
+                    copy.unlink(missing_ok=True)
+                accepted_pages.clear()
                 last_prediction = None
                 dismissed.clear()
                 awaiting_save = None
@@ -892,7 +900,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     recent_pages[previous_id] = (history, last_prediction, dismissed, awaiting_save)
                 saved = recent_pages.pop(state["slideID"], None)
                 if len(recent_pages) > 3:
-                    del recent_pages[next(iter(recent_pages))]
+                    evicted = next(iter(recent_pages))
+                    del recent_pages[evicted]
+                    old = accepted_pages.pop(evicted, None)
+                    if old:
+                        old[0].unlink(missing_ok=True)
                 if saved and slide_content(saved[0][-1]) == slide_content(state):
                     history, last_prediction, dismissed, awaiting_save = saved
                     history[-1] = refreshed_snapshot(history[-1], state)
@@ -921,8 +933,14 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 history_file.write_text(json.dumps(history))
                 candidate = scratch / "preview"
                 source_revision = file_revision(source)
+                # The saved file may predate an accepted picture or preset change.
+                # Coordinate, text and fill edits are synchronized by copy_live_geometry.
+                saved = accepted_pages.get(state["slideID"])
+                baseline = source
+                if saved and saved[1] == source_revision and saved[2] == object_structure(state):
+                    baseline = saved[0]
                 try:
-                    predict_preview(source, str(state["slideID"]), history_file, candidate, references, dismissed, include_page, api)
+                    predict_preview(baseline, str(state["slideID"]), history_file, candidate, references, dismissed, include_page, api)
                 except UnsavedSlideError as error:
                     if session_canvas is None:
                         raise
@@ -953,6 +971,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 history = history[-7:] + [dict(final_state, acceptedSuggestion=summary)]
                                 last_prediction = slide_content(final_state)
+                                staged = candidate / "after.pptx"
+                                if staged.is_file() and file_revision(source) == source_revision:
+                                    copy = scratch / f"accepted-{state['slideID']}.pptx"
+                                    staged.replace(copy)
+                                    accepted_pages[state["slideID"]] = (copy, source_revision, object_structure(final_state))
                             elif (candidate / "dismissed").exists():
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 dismissed = [item for item in dismissed if item != summary][-7:] + [summary]
