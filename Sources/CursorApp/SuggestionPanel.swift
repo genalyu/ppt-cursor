@@ -43,9 +43,19 @@ final class SuggestionPanel: NSPanel {
     }
 
     func position(at page: NSRect) {
-        let screen = NSScreen.screens.max { $0.frame.intersection(page).width < $1.frame.intersection(page).width }
+        let displays = NSScreen.screens.map { $0.visibleFrame }
+        setFrameOrigin(Self.origin(for: page, panel: frame.size, displays: displays))
+    }
+
+    static func origin(for page: NSRect, panel: NSSize, displays: [NSRect]) -> NSPoint {
+        func coveredArea(_ display: NSRect) -> CGFloat {
+            let overlap = display.intersection(page)
+            return overlap.isNull ? 0 : overlap.width * overlap.height
+        }
+        let display = displays.max { coveredArea($0) < coveredArea($1) } ?? page
         let above = page.maxY + 6
-        let y = above + frame.height <= (screen?.visibleFrame.maxY ?? page.maxY) ? above : page.maxY - frame.height - 6
-        setFrameOrigin(NSPoint(x: page.maxX - frame.width - 6, y: y))
+        let y = above + panel.height <= display.maxY ? above : page.maxY - panel.height - 6
+        return NSPoint(x: max(display.minX, min(page.maxX - panel.width - 6, display.maxX - panel.width)),
+                       y: max(display.minY, min(y, display.maxY - panel.height)))
     }
 }
