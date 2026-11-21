@@ -89,6 +89,12 @@ public struct EditContext: Encodable, Sendable {
 public struct EditHistory: Sendable {
     private var states: [SlideSnapshot] = []
     private var dismissed: [(summary: String, remaining: Int)] = []
+    private struct SavedPage: Sendable {
+        let slideID: Int
+        let states: [SlideSnapshot]
+        let dismissed: [(summary: String, remaining: Int)]
+    }
+    private var recentPages: [SavedPage] = []
     private let limit: Int
 
     public init(limit: Int = 8) {
@@ -105,6 +111,7 @@ public struct EditHistory: Sendable {
     }
 
     public mutating func reset() {
+        recentPages.removeAll()
         states.removeAll()
         dismissed.removeAll()
     }
@@ -118,9 +125,24 @@ public struct EditHistory: Sendable {
 
     /// Initial observation seeds history. Only a real change on the same slide starts prediction.
     public mutating func observe(_ state: SlideSnapshot) -> EditContext? {
-        guard let last = current, last.document == state.document, last.slideID == state.slideID else {
-            dismissed.removeAll()
+        guard let last = current, last.document == state.document else {
+            reset()
             states = [state]
+            return nil
+        }
+        if last.slideID != state.slideID {
+            let saved = recentPages.first { $0.slideID == state.slideID }
+            recentPages.removeAll { $0.slideID == state.slideID }
+            recentPages.append(SavedPage(slideID: last.slideID, states: states, dismissed: dismissed))
+            if recentPages.count > 3 { recentPages.removeFirst() }
+            if let saved, let page = saved.states.last, page.objects == state.objects,
+               page.width == state.width, page.height == state.height {
+                states = Array(saved.states.dropLast()) + [state]
+                dismissed = saved.dismissed
+            } else {
+                states = [state]
+                dismissed.removeAll()
+            }
             return nil
         }
         guard last != state else { return nil }

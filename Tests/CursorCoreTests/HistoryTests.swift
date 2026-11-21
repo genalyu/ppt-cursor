@@ -99,6 +99,21 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(context.current.document, path)
     }
 
+    func testReturningToUnchangedPageRestoresOnlyItsHistory() {
+        var history = EditHistory()
+        _ = history.observe(snapshot(0))
+        _ = history.observe(snapshot(8))
+        _ = history.observe(snapshot(90, slide: 2))
+        XCTAssertNil(history.observe(snapshot(8)))
+        XCTAssertEqual(history.observe(snapshot(16))?.previous, [snapshot(0), snapshot(8)])
+        _ = history.observe(snapshot(90, slide: 2))
+        XCTAssertNil(history.observe(snapshot(99)))
+        XCTAssertEqual(history.currentContext?.previous, [])
+        _ = history.observe(snapshot(90, slide: 2, document: "other"))
+        XCTAssertNil(history.observe(snapshot(99)))
+        XCTAssertEqual(history.currentContext?.previous, [])
+    }
+
     func testDocumentAndSlideChangesReseedContext() {
         var history = EditHistory()
         _ = history.observe(snapshot(0))
