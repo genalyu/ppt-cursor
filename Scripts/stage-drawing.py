@@ -45,7 +45,7 @@ def slide_part(package, selector):
     return posixpath.normpath(posixpath.join("ppt", targets[0])).lstrip("/")
 
 
-class UnsavedObjectError(ValueError):
+class UnsavedSlideError(ValueError):
     pass
 
 
@@ -81,7 +81,7 @@ def native_shape_id(index, live_key):
     try:
         return index[name, occurrence]
     except KeyError:
-        raise UnsavedObjectError("当前对象尚未同步到 PPTX 文件") from None
+        raise UnsavedSlideError("当前对象尚未同步到 PPTX 文件") from None
 
 
 def model_shape(shape):
@@ -470,6 +470,12 @@ def sync_live_fill(shape, rgb, transparency=None):
 def copy_live_geometry(source, selector, current, baseline):
     """Carry current top-level native shape and picture transforms into the temporary baseline."""
     with ZipFile(source) as original, ZipFile(baseline, "x") as staged:
+        presentation = ElementTree.fromstring(original.read("ppt/presentation.xml"))
+        size = presentation.find(f"{{{P}}}sldSz")
+        if size is not None:
+            for field, attribute in (("width", "cx"), ("height", "cy")):
+                if field in current and abs(current[field] - int(size.attrib[attribute]) / 12700) > 0.01:
+                    raise UnsavedSlideError("当前页面尺寸尚未同步到 PPTX 文件")
         part = slide_part(original, selector)
         slide = minidom.parseString(original.read(part))
         tree, = slide.getElementsByTagNameNS(P, "spTree")
@@ -479,7 +485,7 @@ def copy_live_geometry(source, selector, current, baseline):
         live_ids = [native_shape_id(index, obj["id"]) for obj in current["objects"]]
         saved_ids = list(index.values())
         if saved_ids != live_ids:
-            raise UnsavedObjectError("当前对象或图层顺序尚未同步到 PPTX 文件")
+            raise UnsavedSlideError("当前对象或图层顺序尚未同步到 PPTX 文件")
         for obj, identity in zip(current["objects"], live_ids):
             shape = by_id.get(identity)
             if shape is None:
@@ -733,13 +739,13 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 source_revision = file_revision(source)
                 try:
                     predict_preview(source, str(state["slideID"]), history_file, candidate, references, dismissed, include_page)
-                except UnsavedObjectError:
+                except UnsavedSlideError as error:
                     if session_canvas is None:
                         raise
                     if candidate.exists():
                         shutil.rmtree(candidate)
                     awaiting_save = (state["slideID"], source_revision)
-                    print("检测到尚未写入 PPTX 的对象。保存文稿后将自动继续预测。", file=sys.stderr, flush=True)
+                    print(f"{error}。保存文稿后将自动继续预测。", file=sys.stderr, flush=True)
                     continue
                 except (subprocess.SubprocessError, ValueError, ExpatError) as error:
                     if session_canvas is None:
