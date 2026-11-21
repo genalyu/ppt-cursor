@@ -318,6 +318,20 @@ def write_overlay(before_file, after_file, output):
         return changed.getbbox() is not None
 
 
+def geometry_outline(acceptance, state):
+    if not acceptance:
+        return None
+    edit = acceptance["edits"][0]
+    if edit.get("duplicate") or edit.get("rotation") or not edit.get("placement"):
+        return None
+    obj = next(obj for obj in state["objects"] if obj["id"] == edit["id"])
+    rect = edit["placement"]
+    if not any(abs(rect[key] - obj[key]) > 0.01 for key in ("x", "y", "width", "height")):
+        return None
+    return (rect["x"] / state["width"], rect["y"] / state["height"],
+            (rect["x"] + rect["width"]) / state["width"], (rect["y"] + rect["height"]) / state["height"])
+
+
 def slide_page(source, slide_id):
     with ZipFile(source) as package:
         presentation = ElementTree.fromstring(package.read("ppt/presentation.xml"))
@@ -346,7 +360,7 @@ def page_png(pdf, output):
     subprocess.run(command, check=True, timeout=30)
 
 
-def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False, baseline_image=None):
+def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False, baseline_image=None, outline=None):
     """Render both states from one baseline, without taking focus from PowerPoint."""
     with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
         scratch = Path(folder).resolve()
@@ -372,6 +386,13 @@ def render_pair(source, slide_id, fragment, destination, replace_id, require_vis
             export_page(scratch, page, [candidate])
         page_png(str(scratch / "after.pdf"), result / "after.png")
         visible = write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
+        if not visible and outline and outline[2] > outline[0] and outline[3] > outline[1]:
+            from PIL import Image, ImageDraw
+            with Image.open(result / "overlay.png") as image:
+                bounds = [round(value * image.size[index % 2]) for index, value in enumerate(outline)]
+                ImageDraw.Draw(image).rectangle(bounds, outline=(0, 142, 176, 255), width=3)
+                visible = image.getchannel("A").getbbox() is not None
+                image.save(result / "overlay.png")
         if require_visible and not visible:
             return False
         destination.mkdir()
@@ -603,12 +624,12 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
         proposal["drawing"] = expand_transform(proposal["drawing"], template)
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
+        acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if not render_pair(baseline, selector, fragment, output, proposal["replaceID"],
-                           require_visible=True, baseline_image=page_image):
+                           require_visible=True, baseline_image=page_image, outline=geometry_outline(acceptance, states[-1])):
             print("No visible change.")
             return
         (output / "summary.txt").write_text(proposal["summary"])
-        acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if acceptance:
             (output / "accept.json").write_text(json.dumps(acceptance))
         print(proposal["summary"])
