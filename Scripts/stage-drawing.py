@@ -585,6 +585,11 @@ def matches_document(identifier, source):
         return False
 
 
+def file_revision(source):
+    info = source.stat()
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
 def watch_preview(source, destination, session_canvas=None, references=(), include_page=False):
     """Wait for a settled object edit in this open document, then render one current proposal."""
     resources = Path(__file__).resolve().parent
@@ -628,7 +633,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 continue
             if awaiting_save is not None:
                 if state and state["slideID"] == awaiting_save[0] and state["objects"] == last_prediction:
-                    if source.stat().st_mtime_ns == awaiting_save[1]:
+                    if file_revision(source) == awaiting_save[1]:
                         time.sleep(0.5)
                         continue
                     last_prediction = None
@@ -651,7 +656,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
                 candidate = scratch / "preview"
-                source_revision = source.stat().st_mtime_ns
+                source_revision = file_revision(source)
                 try:
                     predict_preview(source, str(state["slideID"]), history_file, candidate, references, dismissed, include_page)
                 except UnsavedObjectError:
@@ -674,7 +679,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     while confirmed == "deferred":
                         time.sleep(0.5)
                         confirmed = capture()
-                    if confirmed == state:
+                    if confirmed == state and file_revision(source) == source_revision:
                         (candidate / "baseline.json").write_text(json.dumps(state))
                         if session_canvas:
                             subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
@@ -699,7 +704,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         return
                     shutil.rmtree(candidate)
                     if confirmed and confirmed["slideID"] == state["slideID"] and confirmed["objects"] == state["objects"]:
-                        # Selection changed during inference. Retry the pending edit with fresh context.
+                        # The selection or saved document changed during inference.
                         last_prediction = None
                         references_pending = len(history) == 1 and bool(references)
             else:
