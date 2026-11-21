@@ -27,6 +27,21 @@ enum StagedPreview {
         view.imageScaling = .scaleAxesIndependently
         panel.contentView = view
         panel.orderFrontRegardless()
+        let proposal = try? JSONDecoder().decode(Prediction.self, from: Data(contentsOf: directory.appendingPathComponent("accept.json")))
+        let shortcut = AcceptShortcut {
+            guard powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
+                  let proposal else { return }
+            panel.orderOut(nil)
+            do { _ = try PowerPointBridge.apply(proposal, to: baseline) }
+            catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
+            app.terminate(nil)
+        }
+        if let proposal {
+            try proposal.validate(for: baseline)
+            if let key = shortcut.registerPreferred(useTab: baseline.editingText == false) {
+                print(proposal.summary + " · " + key + " 采纳")
+            }
+        }
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
             guard powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
@@ -45,7 +60,7 @@ enum StagedPreview {
                 }
             }
         }
-        defer { timer.invalidate(); panel.orderOut(nil) }
+        defer { shortcut.disable(); timer.invalidate(); panel.orderOut(nil) }
         app.run()
     }
 }

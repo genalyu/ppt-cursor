@@ -121,6 +121,44 @@ def stage(source, part, fragment, output, replace_id=None):
                 "shapeID": int(identity.getAttribute("id")), "name": identity.getAttribute("name")}
 
 
+def geometry_acceptance(tree, replace_id, drawing, current, summary):
+    """Use the live bridge only when geometry completely explains the rendered edit."""
+    if replace_id is None:
+        return None
+    source = next((s for s in tree.childNodes if s.namespaceURI == P and s.localName == "sp"
+                   and int(s.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id")) == replace_id), None)
+    if source is None:
+        return None
+    before = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{source.toxml()}</root>')[0]
+    after = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{drawing}</root>')[0]
+    path = f"{{{P}}}spPr/{{{A}}}xfrm"
+    original, proposed = before.find(path), after.find(path)
+    if original is None or proposed is None:
+        return None
+    placement = {}
+    for tag, fields in (("off", (("x", "x"), ("y", "y"))), ("ext", (("cx", "width"), ("cy", "height")))):
+        old, new = original.find(f"{{{A}}}{tag}"), proposed.find(f"{{{A}}}{tag}")
+        if old is None or new is None:
+            return None
+        for attr, field in fields:
+            if attr not in new.attrib or attr not in old.attrib:
+                return None
+            placement[field] = int(new.attrib.pop(attr)) / 12700
+            old.attrib.pop(attr)
+    angle = int(proposed.attrib.pop("rot", "0")) / 60000
+    original.attrib.pop("rot", None)
+    # Staging explicitly retains the original nonvisual metadata.
+    for shape in (before, after):
+        shape.remove(shape.find(f"{{{P}}}nvSpPr"))
+    def signature(node):
+        return (node.tag, node.attrib, node.text if node.tag == f"{{{A}}}t" else (node.text or "").strip(),
+                [signature(child) for child in node])
+    if signature(before) != signature(after):
+        return None
+    key, = [obj["id"] for obj in current["objects"] if native_shape_id(tree, obj["id"]) == replace_id]
+    return {"summary": summary, "edits": [{"id": key, "rotation": angle, "placement": placement}], "artwork": []}
+
+
 def write_overlay(before_file, after_file, output):
     from PIL import Image, ImageChops
 
@@ -251,6 +289,9 @@ def predict_preview(source, selector, history_file, output):
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
         render_pair(baseline, selector, fragment, output, proposal["replaceID"])
+        acceptance = geometry_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
+        if acceptance:
+            (output / "accept.json").write_text(json.dumps(acceptance))
         print(proposal["summary"])
 
 
