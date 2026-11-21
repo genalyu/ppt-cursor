@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Place a model-authored DrawingML shape into a disposable PPTX for preview."""
 import argparse
+import json
 import os
 from pathlib import Path
 import posixpath
 import re
+import shutil
+import subprocess
 import tempfile
 from xml.dom import Node, minidom
 from xml.etree import ElementTree
@@ -90,6 +93,40 @@ def stage(source, part, fragment, output, replace_id=None):
         os.link(candidate, output)
 
 
+def render_pair(source, slide_id, fragment, destination, replace_id):
+    """Render both states from one baseline, without taking focus from PowerPoint."""
+    office = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
+        scratch = Path(folder).resolve()
+        baseline = scratch / "before.pptx"
+        shutil.copyfile(source, baseline)
+        with ZipFile(baseline) as package:
+            presentation = ElementTree.fromstring(package.read("ppt/presentation.xml"))
+            entries = presentation.findall(f"{{{P}}}sldIdLst/{{{P}}}sldId")
+            pages = [i for i, entry in enumerate(entries, 1) if entry.get("id") == slide_id]
+            if len(pages) != 1:
+                raise ValueError("Preview requires the live slide ID")
+        result = scratch / "result"
+        result.mkdir()
+        candidate = result / "after.pptx"
+        stage(baseline, slide_id, fragment, candidate, replace_id)
+        settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"}}
+        subprocess.run([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
+                        "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
+                        "--outdir", str(scratch), str(baseline), str(candidate)], check=True, timeout=90)
+        for name in ("before", "after"):
+            subprocess.run(["pdftoppm", "-f", str(pages[0]), "-l", str(pages[0]), "-singlefile",
+                            "-scale-to", "1600", "-png", str(scratch / (name + ".pdf")),
+                            str(result / name)], check=True, timeout=30)
+        destination.mkdir()
+        try:
+            for item in result.iterdir():
+                item.rename(destination / item.name)
+        except BaseException:
+            shutil.rmtree(destination)
+            raise
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
@@ -97,5 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("fragment", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
+    parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png and after.pptx to a new output directory (LibreOffice and pdftoppm required)")
     args = parser.parse_args()
-    stage(args.source, args.slide_part, args.fragment, args.output, args.replace_id)
+    operation = render_pair if args.render_pair else stage
+    operation(args.source, args.slide_part, args.fragment, args.output, args.replace_id)
