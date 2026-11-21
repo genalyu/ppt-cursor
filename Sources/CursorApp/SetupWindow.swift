@@ -13,7 +13,7 @@ final class SetupWindow: NSWindow {
         isReleasedWhenClosed = false
         let heading = NSTextField(labelWithString: "在 PowerPoint 中预览下一步")
         heading.font = .systemFont(ofSize: 21, weight: .semibold)
-        let help = NSTextField(wrappingLabelWithString: "在 PowerPoint 打开本地 PPTX，启动开放式预测后选择这份文稿。移动或调整图形时，AI 会结合最近的编辑给出建议。按画布上显示的快捷键采纳。")
+        let help = NSTextField(wrappingLabelWithString: "在 PowerPoint 打开本地 PPTX，然后启动开放式预测。移动或调整图形时，AI 会结合最近的编辑给出建议。按画布上显示的快捷键采纳。")
         help.textColor = .secondaryLabelColor
         let start = NSButton(title: "定位画布并开始", target: owner, action: calibrate)
         start.toolTip = "定位当前画布，启动布局和素材预测。"

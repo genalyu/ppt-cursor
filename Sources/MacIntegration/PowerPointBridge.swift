@@ -26,7 +26,7 @@ public enum PowerPointBridge {
         guard FileManager.default.createFile(atPath: file.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
             throw BridgeFailure("无法准备 PowerPoint 操作。")
         }
-        guard let result = try run(["apply", file.path]) else { throw BridgeFailure("幻灯片已关闭。") }
+        guard let result: SlideSnapshot = try run(["apply", file.path]) else { throw BridgeFailure("幻灯片已关闭。") }
         return result
     }
 
@@ -61,11 +61,26 @@ public enum PowerPointBridge {
         try candidate.write(to: copy)
         let request = folder.appendingPathComponent("request.json")
         try JSONEncoder().encode(Request(baseline: baseline, nativeInsert: NativeInsert(presetTarget: canChangePreset ? target.presetTarget : nil, path: copy.path, name: target.name, page: target.page))).write(to: request)
-        guard let result = try run(["apply", request.path]) else { throw BridgeFailure("幻灯片已关闭。") }
+        guard let result: SlideSnapshot = try run(["apply", request.path]) else { throw BridgeFailure("幻灯片已关闭。") }
         return result
     }
 
-    private static func run(_ arguments: [String]) throws -> SlideSnapshot? {
+    public static func currentDocumentURL() throws -> URL? {
+        guard let identifier: String = try run(["document"]) else { return nil }
+        let url: URL
+        if identifier.hasPrefix("/") {
+            url = URL(fileURLWithPath: identifier)
+        } else if let file = URL(string: identifier), file.isFileURL,
+                  file.host == nil || file.host == "" || file.host == "localhost" {
+            url = file
+        } else { return nil }
+        guard url.pathExtension.lowercased() == "pptx",
+              (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+              FileManager.default.isReadableFile(atPath: url.path) else { return nil }
+        return url
+    }
+
+    private static func run<Value: Decodable>(_ arguments: [String]) throws -> Value? {
         let script = ResourcesBundle.value.url(forResource: "snapshot", withExtension: "js")!
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -89,6 +104,6 @@ public enum PowerPointBridge {
             }
             throw BridgeFailure(String(detail.prefix(1500)))
         }
-        return try JSONDecoder().decode(SlideSnapshot?.self, from: data)
+        return try JSONDecoder().decode(Value?.self, from: data)
     }
 }

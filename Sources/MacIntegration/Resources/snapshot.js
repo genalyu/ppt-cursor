@@ -123,6 +123,11 @@ function sameState(actual, expected) {
 
 function run(args) {
     if (!args.length) return snapshot();
+    if (args.length === 1 && args[0] === "document") {
+        const app = Application("com.microsoft.Powerpoint");
+        if (!app.running() || !app.presentations.length) return "null";
+        return JSON.stringify(String(app.activePresentation.fullName() || ""));
+    }
     if (args.length === 1 && args[0] === "settled") {
         ObjC.import("AppKit");
         const ready = () => Number($.NSEvent.pressedMouseButtons) === 0 &&
