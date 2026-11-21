@@ -61,10 +61,15 @@ enum StagedPreview {
                 app.activate(ignoringOtherApps: true)
                 while save.runModal() == .OK, let destination = save.url {
                     do {
-                        try FileManager.default.copyItem(at: directory.appendingPathComponent("after.pptx"), to: destination)
+                        let candidate = directory.appendingPathComponent("after.pptx")
+                        try FileManager.default.copyItem(at: candidate, to: destination)
                         powerpoint.activate(options: [])
                         app.terminate(nil)
                         return
+                    } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                        save.message = "这个文件名已在使用。请为建议副本选择另一个名称。"
+                        let stem = destination.deletingPathExtension().lastPathComponent
+                        save.nameFieldStringValue = stem + " 副本.pptx"
                     } catch {
                         NSAlert(error: error).runModal()
                     }
