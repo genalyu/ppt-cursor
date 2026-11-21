@@ -4,13 +4,13 @@ PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它�
 
 ## 下载 Mac 测试版
 
-[下载 Preview 31 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.31/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.31/PPT-Cursor-macOS-arm64.zip.sha256)
+[下载 Preview 32 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.32/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.32/PPT-Cursor-macOS-arm64.zip.sha256)
 
 解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
 ## 试一次拖动预测
 
-用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「启动开放式预测…」，选择刚打开的示例文稿。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。可在启动窗口或菜单栏更改「用 Tab 采纳可见建议」。
+用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「启动开放式预测…」。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。可在启动窗口或菜单栏更改「用 Tab 采纳可见建议」。
 
 ## 本地构建与运行
 
@@ -53,7 +53,7 @@ open "dist/PPT Cursor.app"
 
 ## 试用原生图形预测
 
-在 PowerPoint 打开本地 PPTX，然后从启动窗口或菜单栏选择「启动开放式预测…」。源码版会读取当前文稿的文件位置并直接开始，菜单栏的「为其他文稿启动预测…」可手动选择。Preview 31 会显示文件选择窗口。自动定位画布需要 macOS 屏幕录制权限。仅定位时，窗口像素在本机处理。应用会切回 PowerPoint，在控制窗口显示会话状态。可在菜单栏选择「停止开放式预测」。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要 LibreOffice 和安装了 Pillow 的 Python 3。Preview 29 支持已登录的 Codex CLI 和 OpenAI API。使用 API 时，先在「模型连接…」选择模型并填写密钥，再启动开放式会话。也可以直接运行包内脚本：
+在 PowerPoint 打开本地 PPTX，然后从启动窗口或菜单栏选择「启动开放式预测…」。应用会读取当前文稿的文件位置并直接开始，菜单栏的「为其他文稿启动预测…」可手动选择。自动定位画布需要 macOS 屏幕录制权限。仅定位时，窗口像素在本机处理。应用会切回 PowerPoint，在控制窗口显示会话状态。可在菜单栏选择「停止开放式预测」。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要 LibreOffice 和安装了 Pillow 的 Python 3。Preview 29 支持已登录的 Codex CLI 和 OpenAI API。使用 API 时，先在「模型连接…」选择模型并填写密钥，再启动开放式会话。也可以直接运行包内脚本：
 
 ```sh
 python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"
