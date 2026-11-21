@@ -51,15 +51,32 @@ enum StagedPreview {
                 save.nameFieldStringValue = "PowerPoint 建议副本.pptx"
                 save.message = "将预览时的文稿另存为可编辑副本。请选择新文件名。"
                 app.activate(ignoringOtherApps: true)
-                if save.runModal() == .OK, let destination = save.url {
+                while save.runModal() == .OK, let destination = save.url {
                     do {
                         try FileManager.default.copyItem(at: directory.appendingPathComponent("after.pptx"), to: destination)
+                        powerpoint.activate(options: [])
+                        app.terminate(nil)
+                        return
                     } catch {
                         NSAlert(error: error).runModal()
                     }
                 }
                 powerpoint.activate(options: [])
-                app.terminate(nil)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let valid = (try? PowerPointBridge.capture()) == baseline
+                    DispatchQueue.main.async {
+                        guard valid, powerpoint.isActive,
+                              let current = PowerPointWindow.front(of: powerpoint),
+                              current.id == window.id, current.frame == window.frame,
+                              PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == frame else {
+                            app.terminate(nil)
+                            return
+                        }
+                        submitted = false
+                        panel.orderFrontRegardless()
+                        feedbackPanel?.orderFrontRegardless()
+                    }
+                }
                 return
             }
             submitted = true
