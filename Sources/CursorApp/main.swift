@@ -298,7 +298,16 @@ final class Controller: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.calibration?.orderOut(nil)
             self.calibration = nil
-            guard let rect else { return }
+            guard let rect else {
+                if self.monitoring, self.frame != nil {
+                    self.message("已取消重新定位，继续使用原画布")
+                    ppt.activate(options: [])
+                } else {
+                    self.message("已取消定位，可重新点击「定位画布并开始」。")
+                    self.openSetup()
+                }
+                return
+            }
             self.frame = rect
             self.calibratedWindow = window
             self.monitoring = true
