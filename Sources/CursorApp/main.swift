@@ -92,6 +92,11 @@ final class Controller: NSObject, NSApplicationDelegate {
         chooser.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
         chooser.message = "选择已在 PowerPoint 打开的文稿。本次开放式预测使用 " + (api?.model ?? "Codex CLI") + "。"
         guard chooser.runModal() == .OK, let document = chooser.url else { return }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            openSetup()
+            message("开放式预览需要定位 PowerPoint 画布。请在系统设置的“隐私与安全性”中允许 PPT Cursor 录制屏幕，再重新启动会话。也可以使用“定位画布并开始”手动框选。")
+            return
+        }
         let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
         do {
             try FileManager.default.createDirectory(at: session, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])

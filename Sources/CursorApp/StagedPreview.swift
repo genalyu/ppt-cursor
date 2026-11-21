@@ -22,9 +22,18 @@ enum StagedPreview {
               let powerpoint = NSWorkspace.shared.frontmostApplication,
               powerpoint.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint",
               let window = PowerPointWindow.front(of: powerpoint),
-              let frame = PageLocator.locate(in: window, aspect: baseline.width / baseline.height),
               try PowerPointBridge.capture() == baseline else {
             throw CocoaError(.userCancelled)
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            throw NSError(domain: "PPTCursor.Preview", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "请在系统设置的“隐私与安全性”中允许 PPT Cursor 录制屏幕，然后重新启动会话。"
+            ])
+        }
+        guard let frame = PageLocator.locate(in: window, aspect: baseline.width / baseline.height) else {
+            throw NSError(domain: "PPTCursor.Preview", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "无法识别页面边界。请在 PowerPoint 普通视图中完整显示当前页，或从控制窗口手动定位画布。"
+            ])
         }
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
