@@ -4,7 +4,7 @@ PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它�
 
 ## 下载 Mac 测试版
 
-[下载 Preview 22 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.22/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.22/PPT-Cursor-macOS-arm64.zip.sha256)
+[下载 Preview 23 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.23/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.23/PPT-Cursor-macOS-arm64.zip.sha256)
 
 解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
@@ -53,7 +53,7 @@ open "dist/PPT Cursor.app"
 
 ## 试用原生图形预测
 
-Preview 22 可从菜单栏选择「在终端启动开放式预测…」，再选择已经打开的本地 PPTX。切回 PowerPoint 后编辑，按 Control-C 结束终端中的会话。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要已登录的 Codex CLI、LibreOffice 和安装了 Pillow 的 Python 3。也可以直接运行包内脚本：
+Preview 23 可从启动窗口或菜单栏选择「在终端启动开放式预测…」，再选择已经打开的本地 PPTX。切回 PowerPoint 后编辑，按 Control-C 结束终端中的会话。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要已登录的 Codex CLI、LibreOffice 和安装了 Pillow 的 Python 3。也可以直接运行包内脚本：
 
 ```sh
 python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"
