@@ -39,6 +39,7 @@ public struct EditContext: Encodable, Sendable {
     private struct Transition: Encodable {
         let before, after: [SlideObject]
         let selectionBefore, selectionAfter: [String]?
+        let textSelectionBefore, textSelectionAfter: TextSelection?
         let previousOrder, nextOrder: [String]?
         let previousPageSize, nextPageSize: [Double]?
 
@@ -49,6 +50,8 @@ public struct EditContext: Encodable, Sendable {
             after = new.objects.filter { oldIndex[$0.id]?.contains($0) != true }
             selectionBefore = old.selectedIDs
             selectionAfter = new.selectedIDs
+            textSelectionBefore = old.textSelection
+            textSelectionAfter = new.textSelection
             let oldOrder = old.objects.map(\.id), newOrder = new.objects.map(\.id)
             previousOrder = oldOrder == newOrder ? nil : oldOrder
             nextOrder = oldOrder == newOrder ? nil : newOrder

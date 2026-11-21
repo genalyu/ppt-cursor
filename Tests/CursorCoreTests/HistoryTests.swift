@@ -28,6 +28,21 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(next?.previous, [selected])
     }
 
+    func testModelSeesTextRangesAcrossAnEdit() throws {
+        var history = EditHistory()
+        var before = snapshot(0)
+        before.textSelection = TextSelection(offset: 2, length: 3)
+        _ = history.observe(before)
+        var after = snapshot(5)
+        after.textSelection = TextSelection(offset: 5, length: 0)
+        let context = history.observe(after)
+        let data = try JSONEncoder().encode(context)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let step = (json?["transitions"] as? [[String: Any]])?.first
+        XCTAssertEqual(step?["textSelectionBefore"] as? [String: Int], ["offset": 2, "length": 3])
+        XCTAssertEqual(step?["textSelectionAfter"] as? [String: Int], ["offset": 5, "length": 0])
+    }
+
     func testModelSeesOrderedChangesAndUnchangedObjectsOnlyOnce() throws {
         let stationary = SlideObject(id: "fixed", kind: "shape", name: "Background", text: nil,
                                     x: 0, y: 0, width: 960, height: 540, rotation: 0)
