@@ -381,8 +381,18 @@ def matches_document(identifier, source):
 def watch_preview(source, destination, session_canvas=None, references=()):
     """Wait for a settled object edit in this open document, then render one current proposal."""
     script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
+    timed_out = False
+
     def capture():
-        data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20)
+        nonlocal timed_out
+        try:
+            data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20)
+        except subprocess.TimeoutExpired:
+            if not timed_out:
+                print("等待 PowerPoint 响应。若有打开的对话框，请处理后继续编辑。", file=sys.stderr, flush=True)
+            timed_out = True
+            return "deferred"
+        timed_out = False
         state = json.loads(data)
         if state == "deferred":
             return state
