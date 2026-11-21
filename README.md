@@ -2,6 +2,12 @@
 
 PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给 Codex 推断下一步，在画布上显示建议。用户按 **⌥⌘Return** 采纳。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
 
+## 下载 Mac 测试版
+
+[下载 Apple Silicon 版 ZIP](https://raw.githubusercontent.com/genalyu/ppt-cursor/1a8a7df09b704f0f56473e1eb07695510747d538/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://raw.githubusercontent.com/genalyu/ppt-cursor/1a8a7df09b704f0f56473e1eb07695510747d538/PPT-Cursor-macOS-arm64.zip.sha256)
+
+解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint 和已登录的 Codex CLI。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
+
 ## 本地构建与运行
 
 需要 macOS 13 或更新版本、Microsoft PowerPoint 桌面版、包含 Swift 5.9 或更高版本的 Xcode Command Line Tools，以及已登录的 Codex CLI。当前版本可从 ChatGPT 桌面应用、Homebrew 的 Apple Silicon 路径或 Intel 路径发现 Codex。
