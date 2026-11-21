@@ -46,10 +46,32 @@ enum StagedPreview {
             app.activate(ignoringOtherApps: true)
             picker.makeKeyAndOrderFront(nil)
             picker.makeFirstResponder(view)
+            // The user can switch documents or keep editing while choosing the page.
+            // Release the modal panel so the watcher can see the next edit.
+            var checking = false
+            let validity = Timer(timeInterval: 1, repeats: true) { _ in
+                guard !checking else { return }
+                guard let current = PowerPointWindow.front(of: powerpoint),
+                      current.id == window.id, current.frame == window.frame else {
+                    app.stopModal()
+                    return
+                }
+                checking = true
+                DispatchQueue.global(qos: .utility).async {
+                    let matches = (try? PowerPointBridge.capture()) == baseline
+                    DispatchQueue.main.async {
+                        checking = false
+                        if !matches && app.modalWindow === picker { app.stopModal() }
+                    }
+                }
+            }
+            RunLoop.main.add(validity, forMode: .modalPanel)
             app.runModal(for: picker)
+            validity.invalidate()
             picker.orderOut(nil)
+            guard let selection else { throw CocoaError(.userCancelled) }
             powerpoint.activate(options: [])
-            guard let selection, let current = PowerPointWindow.front(of: powerpoint),
+            guard let current = PowerPointWindow.front(of: powerpoint),
                   current.id == window.id, current.frame == window.frame,
                   try PowerPointBridge.capture() == baseline else { throw CocoaError(.userCancelled) }
             frame = selection
