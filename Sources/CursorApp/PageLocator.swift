@@ -46,6 +46,7 @@ enum PageLocator {
                                       bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
             ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
             let bytes = buffer.bindMemory(to: UInt8.self)
+            var pages: [CGRect] = []
             for darkPage in [false, true] {
                 func matches(_ x: Int, _ y: Int) -> Bool {
                     let shade = bytes[y * width + x]
@@ -75,9 +76,10 @@ enum PageLocator {
                 }
                 guard let largest = candidates.max(by: { $0.w < $1.w }),
                       candidates.filter({ abs($0.x-largest.x) < 3 && abs($0.y-largest.y) < 3 && abs($0.w-largest.w) < 3 }).count >= 4 else { continue }
-                return CGRect(x: largest.x, y: largest.y, width: largest.w, height: largest.h)
+                pages.append(CGRect(x: largest.x, y: largest.y, width: largest.w, height: largest.h))
             }
-            return nil
+            // A slide can contain an opposite-colored picture with the same aspect ratio.
+            return pages.max { $0.width < $1.width }
         }
     }
 }

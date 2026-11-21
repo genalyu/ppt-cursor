@@ -14,6 +14,11 @@ for (page, background, visible) in [(0.06, 0.28, true), (0.98, 0.28, true), (0.0
     ctx.fill(CGRect(x: 0, y: 0, width: 800, height: 600))
     ctx.setFillColor(gray: page, alpha: 1)
     ctx.fill(CGRect(x: 120, y: 150, width: 560, height: 315))
+    if visible {
+        // A contrasting picture inside the slide has the same aspect ratio as the page.
+        ctx.setFillColor(gray: page < 0.5 ? 0.98 : 0.06, alpha: 1)
+        ctx.fill(CGRect(x: 200, y: 190, width: 384, height: 216))
+    }
     let rect = PageLocator.pagePixels(in: ctx.makeImage()!, aspect: 16.0 / 9)
     precondition(rect == (visible ? CGRect(x: 120, y: 135, width: 560, height: 315) : nil))
 }
