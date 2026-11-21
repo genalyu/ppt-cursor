@@ -13,7 +13,7 @@ A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 XMLNS = "http://www.w3.org/2000/xmlns/"
 
 
-def stage(source, part, fragment, output):
+def stage(source, part, fragment, output, replace_id=None):
     if not re.fullmatch(r"ppt/slides/slide[1-9][0-9]*\.xml", part):
         raise ValueError("Expected a slide part name")
     raw = fragment.read_bytes()
@@ -39,11 +39,26 @@ def stage(source, part, fragment, output):
             slide = minidom.parseString(original.read(part))
             tree, = slide.getElementsByTagNameNS(P, "spTree")
             ids = [int(node.getAttribute("id")) for node in slide.getElementsByTagNameNS(P, "cNvPr")]
-            props[0].setAttribute("id", str(max(ids, default=0) + 1))
             shape.setAttribute("xmlns:p", P)
             shape.setAttribute("xmlns:a", A)
-            extensions = next((node for node in tree.childNodes if node.namespaceURI == P and node.localName == "extLst"), None)
-            tree.insertBefore(slide.importNode(shape, True), extensions)
+            replacement = slide.importNode(shape, True)
+            if replace_id is None:
+                identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
+                identity.setAttribute("id", str(max(ids, default=0) + 1))
+                extensions = next((node for node in tree.childNodes if node.namespaceURI == P and node.localName == "extLst"), None)
+                tree.insertBefore(replacement, extensions)
+            else:
+                matches = [node for node in slide.getElementsByTagNameNS(P, "cNvPr")
+                           if int(node.getAttribute("id")) == replace_id]
+                if len(matches) != 1:
+                    raise ValueError("Expected one existing shape with the requested ID")
+                metadata = matches[0].parentNode
+                target = metadata.parentNode
+                if target.parentNode != tree or target.namespaceURI != P or target.localName != "sp":
+                    raise ValueError("Replacement requires a top-level native shape")
+                incoming, = replacement.getElementsByTagNameNS(P, "nvSpPr")
+                replacement.replaceChild(metadata.cloneNode(True), incoming)
+                tree.replaceChild(replacement, target)
             for member in original.infolist():
                 data = slide.toxml(encoding="utf-8") if member.filename == part else original.read(member)
                 staged.writestr(member, data)
@@ -56,5 +71,6 @@ if __name__ == "__main__":
     parser.add_argument("slide_part")
     parser.add_argument("fragment", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
     args = parser.parse_args()
-    stage(args.source, args.slide_part, args.fragment, args.output)
+    stage(args.source, args.slide_part, args.fragment, args.output, args.replace_id)
