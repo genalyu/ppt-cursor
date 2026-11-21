@@ -43,14 +43,19 @@ final class HistoryTests: XCTestCase {
     func testModelSeesTextRangesAcrossAnEdit() throws {
         var history = EditHistory()
         var before = snapshot(0)
+        before.editingText = true
         before.textSelection = TextSelection(offset: 2, length: 3)
         _ = history.observe(before)
         var after = snapshot(5)
+        after.editingText = true
         after.textSelection = TextSelection(offset: 5, length: 0)
         let context = history.observe(after)
         let data = try JSONEncoder().encode(context)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let step = (json?["transitions"] as? [[String: Any]])?.first
+        XCTAssertEqual((json?["current"] as? [String: Any])?["editingText"] as? Bool, true)
+        XCTAssertEqual(step?["editingTextBefore"] as? Bool, true)
+        XCTAssertEqual(step?["editingTextAfter"] as? Bool, true)
         XCTAssertEqual(step?["textSelectionBefore"] as? [String: Int], ["offset": 2, "length": 3])
         XCTAssertEqual(step?["textSelectionAfter"] as? [String: Int], ["offset": 5, "length": 0])
     }

@@ -45,6 +45,7 @@ public struct EditContext: Encodable, Sendable {
     private struct Transition: Encodable {
         let before, after: [SlideObject]
         let selectionBefore, selectionAfter: [String]?
+        let editingTextBefore, editingTextAfter: Bool?
         let textSelectionBefore, textSelectionAfter: TextSelection?
         let previousOrder, nextOrder: [String]?
         let previousPageSize, nextPageSize: [Double]?
@@ -59,6 +60,8 @@ public struct EditContext: Encodable, Sendable {
             after = new.objects.filter { oldIndex[$0.id]?.contains($0) != true }
             selectionBefore = old.selectedIDs
             selectionAfter = new.selectedIDs
+            editingTextBefore = old.editingText
+            editingTextAfter = new.editingText
             textSelectionBefore = old.textSelection
             textSelectionAfter = new.textSelection
             let oldOrder = old.objects.map(\.id), newOrder = new.objects.map(\.id)
@@ -72,7 +75,7 @@ public struct EditContext: Encodable, Sendable {
 
     private enum CodingKeys: String, CodingKey { case current, transitions, recentlyDismissed, imagesJustImported }
 
-    private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs, textSelection }
+    private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs, textSelection, editingText }
 
     public func encode(to encoder: Encoder) throws {
         var output = encoder.container(keyedBy: CodingKeys.self)
@@ -81,6 +84,7 @@ public struct EditContext: Encodable, Sendable {
         try page.encode(current.height, forKey: .height)
         try page.encode(current.objects, forKey: .objects)
         try page.encodeIfPresent(current.selectedIDs, forKey: .selectedIDs)
+        try page.encodeIfPresent(current.editingText, forKey: .editingText)
         try page.encodeIfPresent(current.textSelection, forKey: .textSelection)
         if imagesJustImported { try output.encode(true, forKey: .imagesJustImported) }
         if !recentlyDismissed.isEmpty { try output.encode(recentlyDismissed, forKey: .recentlyDismissed) }
