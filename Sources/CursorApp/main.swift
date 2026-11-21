@@ -90,7 +90,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
         let chooser = NSOpenPanel()
         chooser.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
-        chooser.message = "选择已在 PowerPoint 打开的文稿。开放式预测使用 Codex CLI，可从菜单栏停止。"
+        chooser.message = "选择已在 PowerPoint 打开的文稿。本次开放式预测使用 " + (api?.model ?? "Codex CLI") + "。"
         guard chooser.runModal() == .OK, let document = chooser.url else { return }
         let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
         do {
@@ -104,6 +104,15 @@ final class Controller: NSObject, NSApplicationDelegate {
                 return (url, image.name)
             }
             let process = NativeSessionLauncher.process(script: script, document: document, codex: CodexInstallation.executable(), references: references, includePage: setup.includePage.state == .on)
+            if let api {
+                let settings = try JSONEncoder().encode(api)
+                guard settings.count <= 4096 else { message("模型名称或密钥过长"); try? FileManager.default.removeItem(at: session); return }
+                let input = Pipe()
+                try input.fileHandleForWriting.write(contentsOf: settings)
+                try input.fileHandleForWriting.close()
+                process.standardInput = input
+                process.arguments?.append("--api-stdin")
+            }
             process.environment?["TMPDIR"] = session.path
             let output = Pipe()
             process.standardOutput = output

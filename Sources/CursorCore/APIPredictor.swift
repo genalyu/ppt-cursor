@@ -1,6 +1,6 @@
 import Foundation
 
-public struct APISettings: Sendable {
+public struct APISettings: Sendable, Encodable {
     public let model: String
     let key: String
     public func selecting(model: String) -> APISettings {
