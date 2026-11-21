@@ -40,8 +40,16 @@ enum StagedPreview {
         var submitted = false
         weak var feedbackPanel: SuggestionPanel?
         weak var activeShortcut: AcceptShortcut?
+        func matchesPage(_ current: PowerPointWindow) -> Bool {
+            current.id == window.id && current.frame == window.frame &&
+                PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == frame
+        }
         let actions = StagedActions {
             guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
+            guard let current = PowerPointWindow.front(of: powerpoint), matchesPage(current) else {
+                app.terminate(nil)
+                return
+            }
             guard let proposal else {
                 submitted = true
                 panel.orderOut(nil)
@@ -67,8 +75,7 @@ enum StagedPreview {
                     DispatchQueue.main.async {
                         guard valid, powerpoint.isActive,
                               let current = PowerPointWindow.front(of: powerpoint),
-                              current.id == window.id, current.frame == window.frame,
-                              PageLocator.locate(in: current, aspect: baseline.width / baseline.height) == frame else {
+                              matchesPage(current) else {
                             app.terminate(nil)
                             return
                         }
@@ -132,7 +139,7 @@ enum StagedPreview {
             guard !reading else { return }
             reading = true
             DispatchQueue.global(qos: .userInitiated).async {
-                let valid = (try? PowerPointBridge.capture()) == baseline
+                let valid = matchesPage(current) && (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
                     if !submitted && !valid { app.terminate(nil) }
