@@ -1,16 +1,16 @@
 # PPT Cursor for Mac
 
-PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给所选模型推断下一步，在画布上显示建议。源码版首次启动默认用 **Tab** 采纳对象编辑建议，已有的快捷键设置会保留。Preview 30 下载包可在启动窗口勾选「用 Tab 采纳可见建议」。Tab 只在 PowerPoint 位于前台且有建议时启用。编辑文本期间，采纳键会切换为 ⌥⌘Return，面板会显示当前快捷键。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
+PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给所选模型推断下一步，在画布上显示建议。首次启动默认用 **Tab** 采纳对象编辑建议，已有的快捷键设置会保留。Tab 只在 PowerPoint 位于前台且有建议时启用。编辑文本期间，采纳键会切换为 ⌥⌘Return，面板会显示当前快捷键。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
 
 ## 下载 Mac 测试版
 
-[下载 Preview 30 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.30/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.30/PPT-Cursor-macOS-arm64.zip.sha256)
+[下载 Preview 31 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.31/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.31/PPT-Cursor-macOS-arm64.zip.sha256)
 
 解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
 ## 试一次拖动预测
 
-用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「启动开放式预测…」，选择刚打开的示例文稿。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。要使用 Tab，请先在启动窗口或菜单栏勾选「用 Tab 采纳可见建议」。
+用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「启动开放式预测…」，选择刚打开的示例文稿。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。可在启动窗口或菜单栏更改「用 Tab 采纳可见建议」。
 
 ## 本地构建与运行
 
@@ -24,7 +24,7 @@ open "dist/PPT Cursor.app"
 1. 在 PowerPoint 普通视图中打开要编辑的页面。
 2. 在 PPT Cursor 启动窗口点击「定位画布并开始」，应用会在已有屏幕读取权限时尝试识别浅色页面边界。进入框选模式时，沿 PowerPoint 窗口内的实际页面边缘拖出一个矩形。默认仅在本机处理窗口像素。在控制窗口勾选「向模型提供当前幻灯片截图」后，每次预测会重新核对页面边界，并将匹配的页面裁图提供给模型；无法确认边界时使用对象与历史数据。也可以从菜单栏重新定位。定位完成后开始预测。
 3. 按系统提示允许自动化 PowerPoint。移动或调整几个图形，使编辑意图逐渐明确。
-4. 看到青色轮廓时，按 **⌥⌘Return**、点击页面边缘的「采纳」，或从菜单选择「采纳当前建议」。继续编辑会清除旧建议。「暂停预测」会停止读取新状态。模型请求失败后，可在菜单中选择「重试上次预测」。应用会重新读取当前页，确认编辑状态仍然匹配后再请求模型。
+4. 看到青色轮廓时，按面板显示的快捷键、点击页面边缘的「采纳」，或从菜单选择「采纳当前建议」。继续编辑会清除旧建议。「暂停预测」会停止读取新状态。模型请求失败后，可在菜单中选择「重试上次预测」。应用会重新读取当前页，确认编辑状态仍然匹配后再请求模型。
 5. 拖动同一个 PowerPoint 窗口时，预览跟随窗口移动。改变窗口大小、切换到另一个演示文稿窗口或调整页面缩放后，请重新定位画布。
 
 ### 发布者签名和公证
