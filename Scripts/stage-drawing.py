@@ -218,14 +218,19 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
                 digest.update(chunk)
         target["candidateSHA256"] = digest.hexdigest()
         (result / "target.json").write_text(json.dumps(target, ensure_ascii=False))
-        settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"}}
+        settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"},
+                    "PageRange": {"type": "string", "value": str(pages[0])}}
         subprocess.run([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
                         "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
                         "--outdir", str(scratch), str(baseline), str(candidate)], check=True, timeout=90)
         for name in ("before", "after"):
-            subprocess.run(["pdftoppm", "-f", str(pages[0]), "-l", str(pages[0]), "-singlefile",
-                            "-scale-to", "1600", "-png", str(scratch / (name + ".pdf")),
-                            str(result / name)], check=True, timeout=30)
+            pdf = str(scratch / (name + ".pdf"))
+            if shutil.which("pdftoppm"):
+                command = ["pdftoppm", "-singlefile", "-scale-to", "1600", "-png", pdf, str(result / name)]
+            else:
+                command = ["/usr/bin/sips", "-s", "format", "png", "-Z", "1600", pdf,
+                           "--out", str(result / (name + ".png"))]
+            subprocess.run(command, check=True, timeout=30)
         write_overlay(result / "before.png", result / "after.png", result / "overlay.png")
         destination.mkdir()
         try:
@@ -481,7 +486,7 @@ if __name__ == "__main__":
         root = Path(__file__).resolve().parents[1]
         canvas = root / "MacOS/PPTCursor"
         bundled = canvas.is_file() and root.name == "Contents"
-        tools = ["codex", "pdftoppm"]
+        tools = ["codex"]
         if not bundled:
             tools.append("swift")
         for tool in tools:
@@ -530,7 +535,7 @@ if __name__ == "__main__":
     target = parser.add_mutually_exclusive_group()
     target.add_argument("--live-object", help="Object ID from the current PowerPoint snapshot")
     target.add_argument("--replace-id", type=int, help="Replace this native shape while preserving its identity and layer")
-    parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png, overlay.png and after.pptx to a new output directory (LibreOffice, pdftoppm and Pillow required)")
+    parser.add_argument("--render-pair", action="store_true", help="Write before.png, after.png, overlay.png and after.pptx to a new output directory (LibreOffice and Pillow required)")
     parser.add_argument("--reference", type=Path, action="append", default=[], help="Attach an image to --predict (repeatable)")
     parser.add_argument("--predict", action="store_true", help="Use ordered snapshot JSON in place of the fragment to predict and render a native edit")
     args = parser.parse_args()

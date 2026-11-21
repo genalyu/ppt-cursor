@@ -61,7 +61,7 @@ python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" sessi
 
 ### 从源码启动
 
-在 PowerPoint 中打开本地 PPTX，从仓库运行下列命令。需要 Swift、已登录的 Codex CLI、LibreOffice、Poppler 的 `pdftoppm`，以及安装了 Pillow 的 Python 3。
+在 PowerPoint 中打开本地 PPTX，从仓库运行下列命令。需要 Swift、已登录的 Codex CLI、LibreOffice，以及安装了 Pillow 的 Python 3。源码版在缺少 Poppler 时使用 macOS 自带的 `sips` 渲染预览。
 
 ```sh
 python3 Scripts/stage-drawing.py session Examples/Tab-Demo.pptx
