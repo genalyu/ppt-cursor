@@ -8,9 +8,11 @@ public final class PreviewCanvas: NSView {
     private let picturePreviews: [String: NSImage]
     let slide: SlideSnapshot
     let suggestion: Prediction
+    private let background: NSImage?
     let diagnosticBackground: Bool
 
     public init(slide: SlideSnapshot, suggestion: Prediction, frame: NSRect, diagnosticBackground: Bool, images: [ReferenceImage] = [], pageImage: CGImage? = nil) {
+        self.background = diagnosticBackground ? pageImage.map { NSImage(cgImage: $0, size: NSSize(width: slide.width, height: slide.height)) } : nil
         self.picturePreviews = Self.extractPictures(slide: slide, suggestion: suggestion, from: pageImage)
         self.artworkImages = suggestion.artwork.map { asset in
             let bytes: Data
@@ -30,7 +32,7 @@ public final class PreviewCanvas: NSView {
         super.init(frame: frame)
     }
     public static func supportsAppearancePreview(_ object: SlideObject) -> Bool {
-        object.rotation == 0 && (object.kind == "shape type picture" || object.kind == "shape type group")
+        object.rotation == 0
     }
 
     private static func extractPictures(slide: SlideSnapshot, suggestion: Prediction, from page: CGImage?) -> [String: NSImage] {
@@ -39,16 +41,13 @@ public final class PreviewCanvas: NSView {
         let bounds = CGRect(x: 0, y: 0, width: slide.width, height: slide.height)
         let targets = Set(suggestion.edits.filter { $0.text == nil }.map(\.id))
         var result: [String: NSImage] = [:]
-        for (index, object) in slide.objects.enumerated() where targets.contains(object.id) {
+        for object in slide.objects where targets.contains(object.id) {
             guard supportsAppearancePreview(object) else { continue }
             let rect = CGRect(x: object.x, y: object.y, width: object.width, height: object.height)
             guard bounds.contains(rect), rect.width > 0, rect.height > 0 else { continue }
-            // Groups can have transparent gaps. An intersecting shape behind the group
-            // would otherwise appear to move with it in the cropped preview.
-            let neighbors = slide.objects.enumerated().filter { offset, _ in
-                object.kind == "shape type group" ? offset != index : offset > index
-            }
-            let covered = neighbors.contains { _, other in
+            // A screenshot includes pixels of every overlapping layer.
+            let covered = slide.objects.contains { other in
+                guard other.id != object.id else { return false }
                 let angle = other.rotation * .pi / 180
                 let w = abs(cos(angle)) * other.width + abs(sin(angle)) * other.height
                 let h = abs(sin(angle)) * other.width + abs(cos(angle)) * other.height
@@ -80,7 +79,9 @@ public final class PreviewCanvas: NSView {
         transform.concat()
         let pageBounds = NSRect(x: 0, y: 0, width: slide.width, height: slide.height)
         NSBezierPath(rect: pageBounds).addClip()
-        if diagnosticBackground {
+        if let background {
+            background.draw(in: pageBounds, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
+        } else if diagnosticBackground {
             NSColor.white.setFill()
             pageBounds.fill()
             for object in slide.objects {
@@ -105,7 +106,9 @@ public final class PreviewCanvas: NSView {
             rotate(edit.rotation, around: rect)
             let original = slide.objects.first { $0.id == edit.id }
             let outline = outlinePath(for: original, in: rect)
-            if edit.text == nil, edit.fontSize == nil, let picture = picturePreviews[edit.id] {
+            if edit.text == nil, edit.fontSize == nil, edit.solidFillRGB == nil,
+               (original?.kind == "shape type picture" || original?.kind == "shape type group" ||
+                (original?.width == p.width && original?.height == p.height)), let picture = picturePreviews[edit.id] {
                 picture.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.7, respectFlipped: true, hints: nil)
             } else {
                 let replacesText = edit.text.map { $0 != original?.text } ?? false
