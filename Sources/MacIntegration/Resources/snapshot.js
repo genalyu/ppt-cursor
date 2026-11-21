@@ -142,7 +142,7 @@ function run(args) {
     if (baseline && request.baseline.textSelection === undefined) delete baseline.textSelection;
     if (baseline && request.baseline.viewZoom === undefined) delete baseline.viewZoom;
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
-    const proposal = request.proposal;
+    const proposal = request.nativeInsert ? {edits: [], artwork: []} : request.proposal;
 
     const app = Application("com.microsoft.Powerpoint");
     const slide = app.activePresentation.slides[app.activeWindow.view.slide.slideIndex() - 1];
@@ -234,10 +234,16 @@ function run(args) {
                 if (!prepared) throw Error("无法准备素材");
             }
             version = board.changeCount;
+            if (request.nativeInsert && (!app.frontmost() || snapshot() !== asset.original)) throw Error("原幻灯片状态已变化");
             app.activeWindow.view.pasteObject();
             if (slide.shapes.length !== count + 1) throw Error("PowerPoint 未返回新增对象");
             const shape = slide.shapes[count];
             inserted.push(shape);
+            if (request.nativeInsert) {
+                shape.leftPosition = asset.x;
+                shape.top = asset.y;
+                return;
+            }
             write(shape, asset.placement, asset.rotation || 0, asset.text, asset.fontSize, asset.solidFillRGB);
         } finally {
             if (vectorURL) $.NSFileManager.defaultManager.removeItemAtURLError(vectorURL, null);
@@ -251,6 +257,21 @@ function run(args) {
     const started = [];
     if (!app.frontmost()) throw Error("PowerPoint 已切至后台，建议未执行");
     try {
+        if (request.nativeInsert) {
+            const native = request.nativeInsert, position = {original: snapshot()};
+            pasteArtwork(position, {copyShape() {
+                app.open(Path(native.path));
+                const deck = app.presentations.byName(native.path.split("/").pop());
+                try {
+                    const shapes = deck.slides[native.page - 1].shapes;
+                    const source = shapes[shapes.length - 1];
+                    if (source.name() !== native.name) throw Error("建议图形与预览不符");
+                    position.x = source.leftPosition();
+                    position.y = source.top();
+                    source.copyShape();
+                } finally { deck.close({saving: "no"}); }
+            }});
+        }
         for (const change of changes.filter(change => change.edit.duplicate)) {
             pasteArtwork(change.edit, change.shape);
         }

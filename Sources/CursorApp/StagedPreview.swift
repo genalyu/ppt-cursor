@@ -41,6 +41,9 @@ enum StagedPreview {
         panel.contentView = view
         panel.orderFrontRegardless()
         let proposal = try? JSONDecoder().decode(Prediction.self, from: Data(contentsOf: directory.appendingPathComponent("accept.json")))
+        struct Target: Decodable { let operation: String }
+        let target = try? JSONDecoder().decode(Target.self, from: Data(contentsOf: directory.appendingPathComponent("target.json")))
+        let direct = proposal != nil || target?.operation == "insert"
         var submitted = false
         weak var feedbackPanel: SuggestionPanel?
         weak var activeShortcut: AcceptShortcut?
@@ -54,7 +57,7 @@ enum StagedPreview {
                 app.terminate(nil)
                 return
             }
-            guard let proposal else {
+            guard direct else {
                 submitted = true
                 panel.orderOut(nil)
                 feedbackPanel?.orderOut(nil)
@@ -100,7 +103,10 @@ enum StagedPreview {
             panel.orderOut(nil)
             feedbackPanel?.showStatus("正在写入 PowerPoint…", finished: false)
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result { try PowerPointBridge.apply(proposal, to: baseline) }
+                let result = Result {
+                    if let proposal { return try PowerPointBridge.apply(proposal, to: baseline) }
+                    return try PowerPointBridge.insertStagedShape(from: directory, into: baseline)
+                }
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let state):
@@ -128,15 +134,15 @@ enum StagedPreview {
         }
         activeShortcut = shortcut
         var shortcutLabel: String?
-        if let proposal {
-            try proposal.validate(for: baseline)
+        if direct {
+            try proposal?.validate(for: baseline)
             shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
         }
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
-        let controls = SuggestionPanel(summary: proposal == nil ? "可保存为副本 · " + summary : summary,
+        let controls = SuggestionPanel(summary: !direct ? "可保存为副本 · " + summary : summary,
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
-                                       page: frame, actionTitle: proposal == nil ? "另存建议副本…" : nil)
+                                       page: frame, actionTitle: !direct ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
@@ -182,7 +188,7 @@ enum StagedPreview {
                         app.terminate(nil)
                     } else if hidden {
                         hidden = false
-                        if proposal != nil {
+                        if direct {
                             let label = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
                             controls.updateShortcut(label)
                         }

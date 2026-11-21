@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import CursorCore
 
 public struct BridgeFailure: LocalizedError {
@@ -26,6 +27,38 @@ public enum PowerPointBridge {
             throw BridgeFailure("无法准备 PowerPoint 操作。")
         }
         guard let result = try run(["apply", file.path]) else { throw BridgeFailure("幻灯片已关闭。") }
+        return result
+    }
+
+    public static func insertStagedShape(from directory: URL, into baseline: SlideSnapshot) throws -> SlideSnapshot {
+        struct Target: Decodable {
+            let operation: String
+            let page, slideID: Int
+            let name, candidateSHA256: String
+        }
+        struct NativeInsert: Encodable {
+            let path, name: String
+            let page: Int
+        }
+        struct Request: Encodable {
+            let baseline: SlideSnapshot
+            let nativeInsert: NativeInsert
+        }
+        let target = try JSONDecoder().decode(Target.self, from: Data(contentsOf: directory.appendingPathComponent("target.json")))
+        let candidate = try Data(contentsOf: directory.appendingPathComponent("after.pptx"), options: .mappedIfSafe)
+        guard target.operation == "insert", target.slideID == baseline.slideID, target.page > 0,
+              SHA256.hash(data: candidate).map({ String(format: "%02x", $0) }).joined() == target.candidateSHA256 else {
+            throw BridgeFailure("建议副本已变化，请重新生成预览。")
+        }
+        let name = "ppt-cursor-" + UUID().uuidString
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.microsoft.Powerpoint/Data/tmp").appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let copy = folder.appendingPathComponent(name + ".pptx")
+        try candidate.write(to: copy)
+        let request = folder.appendingPathComponent("request.json")
+        try JSONEncoder().encode(Request(baseline: baseline, nativeInsert: NativeInsert(path: copy.path, name: target.name, page: target.page))).write(to: request)
+        guard let result = try run(["apply", request.path]) else { throw BridgeFailure("幻灯片已关闭。") }
         return result
     }
 
