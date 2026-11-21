@@ -14,6 +14,7 @@ public struct SlideSnapshot: Codable, Equatable, Sendable {
     public let slideID: Int
     public let width, height: Double
     public let objects: [SlideObject]
+    public var selectedIDs: [String]? = nil
 }
 
 public struct EditContext: Encodable, Sendable {
@@ -41,6 +42,11 @@ public struct EditHistory: Sendable {
             return nil
         }
         guard last != state else { return nil }
+        if last.objects == state.objects && last.width == state.width && last.height == state.height {
+            // A focus change can invalidate a pending suggestion without constituting a new edit.
+            states[states.count - 1] = state
+            return nil
+        }
         states.append(state)
         if states.count > limit { states.removeFirst(states.count - limit) }
         return EditContext(previous: Array(states.dropLast()), current: state)

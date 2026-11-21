@@ -22,7 +22,23 @@ function snapshot() {
             width: shape.width(), height: shape.height(), rotation: shape.rotation()
         };
     });
+    const selectedIDs = [];
+    const selection = powerpoint.activeWindow.selection;
+    if (selection.selectionType() === "selection type shapes") {
+        const selected = selection.shapeRange.shapes;
+        for (let i = 0; i < selected.length; i++) {
+            const item = selected[i];
+            const name = item.name();
+            let matches = objects.filter(object => object.name === name);
+            if (matches.length > 1) {
+                const x = item.leftPosition(), y = item.top();
+                matches = matches.filter(object => object.x === x && object.y === y);
+            }
+            if (matches.length === 1) selectedIDs.push(matches[0].id);
+        }
+    }
     return JSON.stringify({
+        selectedIDs,
         document: String(presentation.fullName() || presentation.name()),
         slideID: slide.slideID(), width: page.slideWidth(), height: presentation.slideMaster.height(), objects
     });
@@ -44,6 +60,7 @@ function run(args) {
     const request = JSON.parse(ObjC.unwrap(source));
     const baseline = JSON.parse(snapshot());
     for (const object of request.baseline.objects) { if (object.text === undefined) object.text = null; }
+    if (baseline && request.baseline.selectedIDs === undefined) delete baseline.selectedIDs;
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
     const proposal = request.proposal;
 

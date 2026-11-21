@@ -18,6 +18,16 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(context?.current, snapshot(4))
     }
 
+    func testSelectionUpdatesContextWithoutInventingAnEdit() {
+        var history = EditHistory()
+        var selected = snapshot(0)
+        _ = history.observe(selected)
+        selected.selectedIDs = ["42"]
+        XCTAssertNil(history.observe(selected))
+        let next = history.observe(snapshot(5))
+        XCTAssertEqual(next?.previous, [selected])
+    }
+
     func testDocumentAndSlideChangesReseedContext() {
         var history = EditHistory()
         _ = history.observe(snapshot(0))

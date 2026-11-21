@@ -12,6 +12,7 @@ func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T) { precondition(a == b) }
 let tests = HistoryTests()
 tests.testRealChangesOnlyAndBoundedHistory()
 tests.testDocumentAndSlideChangesReseedContext()
+tests.testSelectionUpdatesContextWithoutInventingAnEdit()
 print("History tests passed")
 SWIFT
 swiftc Sources/CursorCore/Context.swift "$tmp/main.swift" -o "$tmp/check"
