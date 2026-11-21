@@ -34,6 +34,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private lazy var shortcut = AcceptShortcut { [weak self] in self?.accept() }
     private var timer: Timer?
     private var observer: NSObjectProtocol?
+    private var dragMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         item.button?.image = NSImage(systemSymbolName: "rectangle.on.rectangle.angled", accessibilityDescription: "PPT Cursor")
@@ -107,6 +108,10 @@ final class Controller: NSObject, NSApplicationDelegate {
         hiddenSuggestion = nil
         inFlightContext = nil
         waiting = nil
+        if let dragMonitor {
+            NSEvent.removeMonitor(dragMonitor)
+            self.dragMonitor = nil
+        }
         shortcut.disable()
         suggestionPanel?.orderOut(nil)
         suggestionPanel = nil
@@ -298,10 +303,20 @@ final class Controller: NSObject, NSApplicationDelegate {
         NSEvent.pressedMouseButtons & 1 != 0
     }
 
+    private func hideDuringCanvasDrag() {
+        guard let ready = pending, frontmost, let frame, frame.contains(NSEvent.mouseLocation),
+              suggestionPanel?.frame.contains(NSEvent.mouseLocation) != true else { return }
+        invalidate()
+        hiddenSuggestion = ready
+    }
+
     private func poll() {
         guard monitoring, frontmost, calibration == nil, !reading, !applying else { return }
         // A held drag may pause between mouse movements. Sample the committed slide after release.
-        guard !editingWithPointer else { return }
+        guard !editingWithPointer else {
+            hideDuringCanvasDrag()
+            return
+        }
         if let old = calibratedWindow, let ppt = NSWorkspace.shared.frontmostApplication {
             guard let current = PowerPointWindow.front(of: ppt), old.id == current.id,
                   old.frame.size == current.frame.size else {
@@ -429,6 +444,9 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         overlay = panel
         pending = (state, prediction)
+        dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
+            self?.hideDuringCanvasDrag()
+        }
         let shortcutLabel = shortcut.enable(useTab: useTab) ? (useTab ? "Tab" : "⌥⌘↩") : nil
         let controls = SuggestionPanel(summary: prediction.summary, shortcutLabel: shortcutLabel,
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
