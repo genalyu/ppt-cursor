@@ -9,9 +9,11 @@ import posixpath
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from xml.dom import Node, minidom
+from xml.parsers.expat import ExpatError
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
@@ -344,7 +346,15 @@ def watch_preview(source, destination, session_canvas=None):
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
                 candidate = scratch / "preview"
-                predict_preview(source, str(state["slideID"]), history_file, candidate)
+                try:
+                    predict_preview(source, str(state["slideID"]), history_file, candidate)
+                except (subprocess.SubprocessError, ValueError, ExpatError) as error:
+                    if session_canvas is None:
+                        raise
+                    if candidate.exists():
+                        shutil.rmtree(candidate)
+                    print(f"本次预测失败，等待下一次编辑：{error}", file=sys.stderr, flush=True)
+                    continue
                 if candidate.exists():
                     if capture() == state:
                         (candidate / "baseline.json").write_text(json.dumps(state))
@@ -370,7 +380,6 @@ def watch_preview(source, destination, session_canvas=None):
 
 
 if __name__ == "__main__":
-    import sys
     if sys.argv[1:2] == ["watch"]:
         parser = argparse.ArgumentParser(description=watch_preview.__doc__)
         parser.add_argument("source", type=Path)
