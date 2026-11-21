@@ -5,9 +5,9 @@ import MacIntegration
 
 final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let status = NSMenuItem(title: "先打开 PowerPoint，定位幻灯片画布", action: nil, keyEquivalent: "")
+    private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), openNativeSession: #selector(openNativeSession), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel))
+    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), openNativeSession: #selector(openNativeSession), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab)
     private var nativeProcess: Process?
     private var nativeDirectory: URL?
     private var frame: NSRect?
@@ -54,7 +54,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         retryItem.target = self
         retryItem.isHidden = true
         menu.addItem(retryItem)
-        let tabOption = menu.addItem(withTitle: "用 Tab 采纳可见建议", action: #selector(toggleTab(_:)), keyEquivalent: "")
+        menu.addItem(tabOption)
         tabOption.target = self
         tabOption.state = useTab ? .on : .off
         toggle.target = self
@@ -219,12 +219,14 @@ final class Controller: NSObject, NSApplicationDelegate {
         overlay?.orderOut(nil)
         overlay = nil
     }
+    private let tabOption = NSMenuItem(title: "用 Tab 采纳可见建议", action: #selector(toggleTab), keyEquivalent: "")
     private var useTab: Bool { AcceptShortcut.prefersTab }
 
-    @objc private func toggleTab(_ sender: NSMenuItem) {
+    @objc private func toggleTab() {
         let enabled = !useTab
         AcceptShortcut.prefersTab = enabled
-        sender.state = enabled ? .on : .off
+        tabOption.state = enabled ? .on : .off
+        setup.tabOption.state = tabOption.state
         if let (state, proposal) = pending {
             invalidate()
             if frontmost { show(state, proposal) } else { hiddenSuggestion = (state, proposal) }

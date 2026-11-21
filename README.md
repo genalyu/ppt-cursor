@@ -10,7 +10,7 @@ PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它�
 
 ## 试一次拖动预测
 
-用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「定位画布并开始」。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。要使用 Tab，请先在菜单栏勾选「用 Tab 采纳可见建议」。
+用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，在 PPT Cursor 中点击「启动开放式预测…」，选择刚打开的示例文稿。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。要使用 Tab，请先在菜单栏勾选「用 Tab 采纳可见建议」。
 
 ## 本地构建与运行
 
