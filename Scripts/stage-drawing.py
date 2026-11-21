@@ -448,6 +448,34 @@ def watch_preview(source, destination, session_canvas=None, references=()):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["session"]:
+        parser = argparse.ArgumentParser(description="持续预览当前 PowerPoint 文稿中的原生图形建议。")
+        parser.add_argument("source", type=Path, help="已在 PowerPoint 中打开的 PPTX 文件")
+        parser.add_argument("--reference", type=Path, action="append", default=[], help="参考图片，可重复指定")
+        args = parser.parse_args(sys.argv[2:])
+        source = args.source.resolve(strict=True)
+        if source.suffix.lower() != ".pptx" or not source.is_file():
+            parser.error("请选择本地 PPTX 文稿")
+        for tool in ("swift", "codex", "pdftoppm"):
+            if not shutil.which(tool):
+                parser.error(f"找不到 {tool}")
+        if not shutil.which("soffice") and not Path("/Applications/LibreOffice.app/Contents/MacOS/soffice").is_file():
+            parser.error("找不到 LibreOffice")
+        try:
+            from PIL import Image
+        except ImportError:
+            parser.error("当前 Python 环境缺少 Pillow")
+        refs = [path.resolve(strict=True) for path in args.reference]
+        root = Path(__file__).resolve().parents[1]
+        subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
+        binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
+        print("正在等待 PowerPoint 中的编辑。按 Control-C 结束。", flush=True)
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                watch_preview(source, Path(folder) / "preview", Path(binary_dir) / "PPTCursor", refs)
+        except KeyboardInterrupt:
+            pass
+        raise SystemExit(0)
     if sys.argv[1:2] == ["watch"]:
         parser = argparse.ArgumentParser(description=watch_preview.__doc__)
         parser.add_argument("source", type=Path)

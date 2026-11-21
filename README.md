@@ -51,6 +51,16 @@ open "dist/PPT Cursor.app"
 
 锁定宽高比的图片已验证可按预览分别写入宽度和高度。测试从 192 × 96 调整到 180 × 80，再恢复到 192 × 96，两次都读回目标尺寸并保留原来的锁定状态。
 
+## 从源码试用原生图形预测
+
+在 PowerPoint 中打开本地 PPTX，从仓库运行下列命令。需要 Swift、已登录的 Codex CLI、LibreOffice、Poppler 的 `pdftoppm`，以及安装了 Pillow 的 Python 3。
+
+```sh
+python3 Scripts/stage-drawing.py session Examples/Tab-Demo.pptx
+```
+
+切回 PowerPoint 后移动图形。连续编辑稳定后，模型会结合当前页与历史生成 DrawingML，应用在临时副本中渲染差异。画布面板会显示建议及可用的采纳方式。几何和单段文字变更可写回；其他原生图形修改目前仅供预览。可追加 `--reference 图片路径` 提供参考素材。按 Control-C 结束监听。
+
 ## 开发验证
 
 ```sh
