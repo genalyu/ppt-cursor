@@ -3,8 +3,10 @@ import AppKit
 final class SetupWindow: NSWindow {
     private let state = NSTextField(wrappingLabelWithString: "")
 
+    let includePage = NSButton(checkboxWithTitle: "向模型提供当前幻灯片截图", target: nil, action: nil)
+
     init(owner: NSObject, calibrate: Selector, chooseImages: Selector) {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 470, height: 232),
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 470, height: 260),
                    styleMask: [.titled, .closable], backing: .buffered, defer: false)
         title = "PPT Cursor"
         isReleasedWhenClosed = false
@@ -18,7 +20,7 @@ final class SetupWindow: NSWindow {
         let buttons = NSStackView(views: [start, assets])
         state.textColor = .secondaryLabelColor
         state.font = .systemFont(ofSize: 12)
-        let stack = NSStackView(views: [heading, help, buttons, state])
+        let stack = NSStackView(views: [heading, help, includePage, buttons, state])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14

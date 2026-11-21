@@ -52,7 +52,7 @@ public struct Predictor: Sendable {
     public let executable: URL
     public init(executable: URL) { self.executable = executable }
 
-    public func predict(_ context: EditContext, images: [ReferenceImage] = [], run: PredictionRun = PredictionRun()) throws -> Prediction {
+    public func predict(_ context: EditContext, images: [ReferenceImage] = [], currentPage: Data? = nil, run: PredictionRun = PredictionRun()) throws -> Prediction {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -66,6 +66,11 @@ public struct Predictor: Sendable {
         process.arguments = ["exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
                              "--output-schema", schema.path, "--output-last-message", result.path, "-"]
         var attachments: [String] = []
+        if let currentPage {
+            let pageURL = dir.appendingPathComponent("current-page.png")
+            try currentPage.write(to: pageURL)
+            attachments += ["--image", pageURL.path]
+        }
         var catalog: [[String: String]] = []
         for image in images {
             let url = dir.appendingPathComponent(image.id + ".png")
@@ -76,6 +81,9 @@ public struct Predictor: Sendable {
         process.arguments?.insert(contentsOf: attachments, at: 1)
         let input = dir.appendingPathComponent("input")
         var request = Data((prompt + "\n").utf8)
+        if currentPage != nil {
+            request.append(Data("The first attached image shows the current slide. Use its visual contents as context; it is not an insertable reference. The catalog describes the remaining attachments.\n".utf8))
+        }
         request.append(try JSONEncoder().encode(catalog))
         request.append(Data("\n".utf8))
         request.append(try JSONEncoder().encode(context))

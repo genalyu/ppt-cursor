@@ -258,6 +258,11 @@ final class Controller: NSObject, NSApplicationDelegate {
         guard inference == nil, let context = waiting else { return }
         waiting = nil
         let references = images
+        var currentPage: Data?
+        if setup.includePage.state == .on, let window = calibratedWindow, let frame {
+            currentPage = PageLocator.previewData(in: window, expected: frame, aspect: context.current.width / context.current.height)
+        }
+        let page = currentPage
         let run = PredictionRun()
         inference = run
         inFlightContext = context
@@ -269,7 +274,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 guard let path = paths.first(where: FileManager.default.isExecutableFile(atPath:)) else {
                     throw NSError(domain: "PPTCursor", code: 1, userInfo: [NSLocalizedDescriptionKey: "请安装并登录 Codex CLI"])
                 }
-                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, images: references, run: run)
+                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, images: references, currentPage: page, run: run)
             }
             DispatchQueue.main.async {
                 self.inference = nil

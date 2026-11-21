@@ -3,10 +3,36 @@ import AppKit
 /// A light slide on the dark editor has a broad, continuous perimeter. Measure multiple
 /// scan lines and require a page-sized 4:3 or widescreen rectangle before using it.
 enum PageLocator {
+    private static func capture(_ window: PowerPointWindow) -> CGImage? {
+        guard CGPreflightScreenCaptureAccess() else { return nil }
+        return CGWindowListCreateImage(.null, .optionIncludingWindow, window.id,
+                                       [.boundsIgnoreFraming, .nominalResolution])
+    }
+
     static func locate(in window: PowerPointWindow, aspect: CGFloat) -> CGRect? {
-        guard CGPreflightScreenCaptureAccess(), aspect > 0,
-              let image = CGWindowListCreateImage(.null, .optionIncludingWindow, window.id,
-                                                  [.boundsIgnoreFraming, .nominalResolution]) else { return nil }
+        guard let image = capture(window), let page = pagePixels(in: image, aspect: aspect) else { return nil }
+        return screenRect(page, image: image, window: window)
+    }
+
+    private static func screenRect(_ rect: CGRect, image: CGImage, window: PowerPointWindow) -> CGRect {
+        let sx = window.frame.width / CGFloat(image.width)
+        let sy = window.frame.height / CGFloat(image.height)
+        return CGRect(x: window.frame.minX + rect.minX * sx, y: window.frame.maxY - rect.maxY * sy,
+                      width: rect.width * sx, height: rect.height * sy)
+    }
+
+    /// Recheck the perimeter in the very same captured frame before sending any cropped pixels.
+    static func previewData(in window: PowerPointWindow, expected: CGRect, aspect: CGFloat) -> Data? {
+        guard let image = capture(window), let pixels = pagePixels(in: image, aspect: aspect) else { return nil }
+        let actual = screenRect(pixels, image: image, window: window)
+        guard abs(actual.minX - expected.minX) <= 3, abs(actual.minY - expected.minY) <= 3,
+              abs(actual.maxX - expected.maxX) <= 3, abs(actual.maxY - expected.maxY) <= 3,
+              let cropped = image.cropping(to: pixels) else { return nil }
+        return NSBitmapImageRep(cgImage: cropped).representation(using: .png, properties: [:])
+    }
+
+    private static func pagePixels(in image: CGImage, aspect: CGFloat) -> CGRect? {
+        guard aspect > 0 else { return nil }
         let width = image.width, height = image.height
         guard width > 200, height > 150 else { return nil }
         var pixels = [UInt8](repeating: 0, count: width * height)
@@ -41,10 +67,7 @@ enum PageLocator {
             }
             guard let largest = candidates.max(by: { $0.w < $1.w }),
                   candidates.filter({ abs($0.x-largest.x) < 3 && abs($0.y-largest.y) < 3 && abs($0.w-largest.w) < 3 }).count >= 4 else { return nil }
-            let sx = window.frame.width / CGFloat(width), sy = window.frame.height / CGFloat(height)
-            return CGRect(x: window.frame.minX + CGFloat(largest.x) * sx,
-                          y: window.frame.maxY - CGFloat(largest.y + largest.h) * sy,
-                          width: CGFloat(largest.w) * sx, height: CGFloat(largest.h) * sy)
+            return CGRect(x: largest.x, y: largest.y, width: largest.w, height: largest.h)
         }
     }
 }
