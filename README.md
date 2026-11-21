@@ -4,7 +4,7 @@ PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它�
 
 ## 下载 Mac 测试版
 
-[下载 Apple Silicon 版 ZIP](https://raw.githubusercontent.com/genalyu/ppt-cursor/dd2202b862e90b7656f3f48a7ed2bf728fe8e323/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://raw.githubusercontent.com/genalyu/ppt-cursor/dd2202b862e90b7656f3f48a7ed2bf728fe8e323/PPT-Cursor-macOS-arm64.zip.sha256)
+[下载 Apple Silicon 版 ZIP](https://raw.githubusercontent.com/genalyu/ppt-cursor/ea611a9e31fc0270bc6942e4ce33ac26586cb39c/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://raw.githubusercontent.com/genalyu/ppt-cursor/ea611a9e31fc0270bc6942e4ce33ac26586cb39c/PPT-Cursor-macOS-arm64.zip.sha256)
 
 解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
