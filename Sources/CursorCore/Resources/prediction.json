@@ -53,6 +53,15 @@
               "number",
               "null"
             ]
+          },
+          "solidFillRGB": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "required": [
@@ -61,7 +70,8 @@
           "rotation",
           "text",
           "duplicate",
-          "fontSize"
+          "fontSize",
+          "solidFillRGB"
         ],
         "additionalProperties": false
       }

@@ -114,7 +114,12 @@ public final class PreviewCanvas: NSView {
                     NSColor.white.setFill()
                     rect.fill()
                 }
-                NSColor.systemTeal.withAlphaComponent(0.19).setFill()
+                if let rgb = edit.solidFillRGB, rgb.count == 3 {
+                    NSColor(srgbRed: CGFloat(rgb[0]) / 255, green: CGFloat(rgb[1]) / 255,
+                            blue: CGFloat(rgb[2]) / 255, alpha: 1).setFill()
+                } else {
+                    NSColor.systemTeal.withAlphaComponent(0.19).setFill()
+                }
                 rect.fill()
                 drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
             }

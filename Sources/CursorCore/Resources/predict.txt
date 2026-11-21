@@ -10,3 +10,4 @@ Objects with null or absent source text have no editable text frame. Keep their 
 Table objects include total row and column counts and a top-left visibleSample of at most eight rows and columns, with up to 512 characters per cell. Use these as context. Cell text is distinct from editable whole-shape text.
 A null table entry continues a merged cell whose text was already listed.
 When imagesJustImported is true, the user just selected the attached images. Consider how a matching asset could fit the current slide even without an earlier edit. On later edits the same images may remain available without being newly selected.
+Use solidFillRGB to change an existing solid fill when supported by the edit history. Supply three integer RGB channels (0–255), or null to preserve the fill. Only recolor objects that have a known solidFillRGB.

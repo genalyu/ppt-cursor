@@ -11,6 +11,7 @@ public struct Placement: Codable, Sendable {
 }
 
 public struct ObjectEdit: Codable, Sendable {
+    public var solidFillRGB: [Int]? = nil
     public let id: String
     public let fontSize: Double?
     public let duplicate: Bool?
@@ -40,6 +41,7 @@ public struct Prediction: Codable, Sendable {
                         edit.rotation.isFinite else { return false }
                   if edit.duplicate == true && source.kind == "shape type place holder" { return false }
                   if let text = edit.text, source.text == nil || text.count > 20000 { return false }
+                  if let rgb = edit.solidFillRGB, source.solidFillRGB == nil || rgb.count != 3 || !rgb.allSatisfy({ (0...255).contains($0) }) { return false }
                   if let size = edit.fontSize, source.fontSize == nil || !(1...4000).contains(size) { return false }
                   return true
               }),
@@ -87,7 +89,7 @@ extension Prediction {
             let nativeText = edit.text?.replacingOccurrences(of: "\r\n", with: "\r")
                 .replacingOccurrences(of: "\n", with: "\r")
             let angle = edit.rotation.truncatingRemainder(dividingBy: 360)
-            return ObjectEdit(id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
+            return ObjectEdit(solidFillRGB: edit.solidFillRGB, id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
                               placement: edit.placement, rotation: angle < 0 ? angle + 360 : angle, text: nativeText)
         }
         // Match the write tolerance in the PowerPoint automation bridge.
@@ -98,6 +100,7 @@ extension Prediction {
             return differs(box.x, source.x) || differs(box.y, source.y) || differs(box.width, source.width) ||
                 differs(box.height, source.height) || differs(edit.rotation, source.rotation) ||
                 (edit.text != nil && edit.text != source.text) ||
+                (edit.solidFillRGB != nil && edit.solidFillRGB != source.solidFillRGB) ||
                 (edit.fontSize.map { differs($0, source.fontSize ?? 0) } ?? false)
         }
         let fitted = Prediction(summary: suggestion.summary, edits: edits, artwork: artwork)
