@@ -15,6 +15,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var suggestionPanel: SuggestionPanel?
     private var api: APISettings?
     private var images: [ReferenceImage] = []
+    private var imageImport: Task<Void, Never>?
     private var history = EditHistory()
     private var monitoring = false
     private var reading = false
@@ -162,6 +163,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func clearImages() {
+        imageImport?.cancel()
+        imageImport = nil
         invalidate()
         images.removeAll()
         message("已清空素材")
@@ -173,12 +176,32 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.allowsMultipleSelection = true
         panel.message = "选择供预测使用的图片。模型会收到文件名及缩略图。重新选择将替换本次素材。"
         guard panel.runModal() == .OK else { return }
-        do {
-            let imported = try panel.urls.map(ImageImport.read)
-            invalidate()
-            images = imported
-            message("已载入 " + String(imported.count) + " 张素材")
-        } catch { message(error.localizedDescription) }
+        let urls = panel.urls
+        imageImport?.cancel()
+        let interrupted = waiting ?? inFlightContext
+        invalidate()
+        waiting = interrupted
+        message("正在载入 " + String(urls.count) + " 张素材…")
+        imageImport = Task { @MainActor in
+            let worker = Task.detached(priority: .userInitiated) {
+                try urls.map { url in
+                    try Task.checkCancellation()
+                    return try autoreleasepool { try ImageImport.read(url) }
+                }
+            }
+            let result = await withTaskCancellationHandler {
+                await worker.result
+            } onCancel: { worker.cancel() }
+            guard !Task.isCancelled else { return }
+            imageImport = nil
+            switch result {
+            case .success(let imported):
+                images = imported
+                message("已载入 " + String(imported.count) + " 张素材")
+            case .failure(let error): message(error.localizedDescription)
+            }
+            poll()
+        }
     }
 
     @objc private func startEditing() {
@@ -346,7 +369,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func startPrediction() {
-        guard inference == nil, let context = waiting else { return }
+        guard imageImport == nil, inference == nil, let context = waiting else { return }
         waiting = nil
         let references = images
         var currentPage: Data?
