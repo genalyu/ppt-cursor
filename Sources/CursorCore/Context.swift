@@ -12,6 +12,7 @@ public struct SlideObject: Codable, Equatable, Sendable {
     public let name: String
     public let text: String?
     public let x, y, width, height, rotation: Double
+    public var solidFillRGB: [Int]? = nil
     public var table: SlideTable? = nil
     public var fontSize: Double? = nil
 }

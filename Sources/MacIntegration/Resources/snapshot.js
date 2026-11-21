@@ -37,6 +37,15 @@ function snapshot() {
             }
         }
         const kind = String(shape.shapeType());
+        let solidFillRGB;
+        if (kind === "shape type auto" || kind === "shape type text box") {
+            const fill = shape.fillFormat;
+            if (fill.visible() && fill.fillFormatType() === "fill solid") {
+                const rgb = fill.foreColor();
+                if (Array.isArray(rgb) && rgb.length === 3 &&
+                    rgb.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) solidFillRGB = rgb;
+            }
+        }
         let table;
         if (kind === "shape type table") {
             const rows = shape.numberOfRows(), columns = shape.numberOfColumns();
@@ -61,7 +70,7 @@ function snapshot() {
             table = {rows, columns, visibleSample};
         }
         return {
-            table, fontSize,
+            table, fontSize, solidFillRGB,
             id: JSON.stringify([name, occurrence]),
             kind,
             name,
