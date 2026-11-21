@@ -161,6 +161,14 @@ def native_acceptance(tree, replace_id, drawing, current, summary):
         return None
     target = matches[0]
     edit = {"id": target["id"], "rotation": angle, "placement": placement}
+    color_path = f"{{{P}}}spPr/{{{A}}}solidFill/{{{A}}}srgbClr"
+    old_color, new_color = before.find(color_path), after.find(color_path)
+    if old_color is not None and new_color is not None and not len(old_color) and not len(new_color):
+        previous, proposed = old_color.get("val", ""), new_color.get("val", "")
+        if previous != proposed and all(re.fullmatch("[0-9a-fA-F]{6}", value) for value in (previous, proposed)):
+            if target.get("solidFillRGB") == list(bytes.fromhex(previous)):
+                edit["solidFillRGB"] = list(bytes.fromhex(proposed))
+                new_color.set("val", previous)
     # Whole-range assignment preserves a single run. Mixed runs and paragraph breaks
     # need a richer write operation to retain their formatting.
     body_path = f"{{{P}}}txBody/{{{A}}}p"
