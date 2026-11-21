@@ -14,6 +14,7 @@ public struct SlideSnapshot: Codable, Equatable, Sendable {
     public let slideID: Int
     public let width, height: Double
     public let objects: [SlideObject]
+    public var viewZoom: Int? = nil
     public var selectedIDs: [String]? = nil
 }
 

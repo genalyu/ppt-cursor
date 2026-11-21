@@ -43,7 +43,7 @@ function snapshot() {
         }
     }
     return JSON.stringify({
-        selectedIDs,
+        viewZoom: powerpoint.activeWindow.view.zoom(), selectedIDs,
         document: String(presentation.fullName() || presentation.name()),
         slideID: slide.slideID(), width: page.slideWidth(), height: presentation.slideMaster.height(), objects
     });
@@ -66,6 +66,7 @@ function run(args) {
     const baseline = JSON.parse(snapshot());
     for (const object of request.baseline.objects) { if (object.text === undefined) object.text = null; }
     if (baseline && request.baseline.selectedIDs === undefined) delete baseline.selectedIDs;
+    if (baseline && request.baseline.viewZoom === undefined) delete baseline.viewZoom;
     if (!sameState(baseline, request.baseline)) throw Error("Slide changed since preview");
     const proposal = request.proposal;
 

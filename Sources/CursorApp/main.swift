@@ -264,6 +264,19 @@ final class Controller: NSObject, NSApplicationDelegate {
                 case .success(let value):
                     guard let state = value else { self.invalidate(); self.history.reset(); return }
                     let previous = self.history.current
+                    if let previous, previous.viewZoom != state.viewZoom {
+                        self.invalidate()
+                        guard let window = self.calibratedWindow, CGPreflightScreenCaptureAccess(),
+                              let page = PageLocator.locate(in: window, aspect: state.width / state.height) else {
+                            self.frame = nil
+                            self.monitoring = false
+                            self.history.reset()
+                            self.toggle.title = "开始预测"
+                            self.message("缩放比例已改变，请重新定位幻灯片画布")
+                            return
+                        }
+                        self.frame = page
+                    }
                     let context = self.history.observe(state)
                     if previous != state {
                         self.invalidate()
