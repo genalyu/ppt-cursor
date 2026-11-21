@@ -559,6 +559,16 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func accept() {
         guard frontmost, !editingWithPointer, !applying, let (state, proposal) = pending else { return }
+        guard let expectedWindow = calibratedWindow,
+              let powerpoint = NSWorkspace.shared.frontmostApplication,
+              let currentWindow = PowerPointWindow.front(of: powerpoint),
+              currentWindow.id == expectedWindow.id,
+              currentWindow.frame == expectedWindow.frame else {
+            invalidate()
+            message("PowerPoint 窗口已改变，已收起旧建议")
+            poll()
+            return
+        }
         let references = images
         applying = true
         invalidate()
