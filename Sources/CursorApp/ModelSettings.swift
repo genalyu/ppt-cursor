@@ -22,20 +22,24 @@ enum ModelSettings {
         panel.addButton(withTitle: "使用 API")
         panel.addButton(withTitle: "使用 Codex CLI")
         panel.addButton(withTitle: "取消")
-        switch panel.runModal() {
-        case .alertFirstButtonReturn:
-            let name = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let secret = key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !name.isEmpty, secret.isEmpty, let current { return .api(current.selecting(model: name)) }
-            guard !name.isEmpty, !secret.isEmpty else {
-                let error = NSAlert()
-                error.messageText = "请填写模型名称和 API 密钥"
-                error.runModal()
-                return nil
+        panel.window.initialFirstResponder = current == nil ? key : model
+        while true {
+            switch panel.runModal() {
+            case .alertFirstButtonReturn:
+                let name = model.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let secret = key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else {
+                    panel.messageText = "请填写模型名称"
+                    panel.window.initialFirstResponder = model
+                    continue
+                }
+                if !secret.isEmpty { return .api(APISettings(model: name, key: secret)) }
+                if let current { return .api(current.selecting(model: name)) }
+                panel.messageText = "请填写 OpenAI API 密钥"
+                panel.window.initialFirstResponder = key
+            case .alertSecondButtonReturn: return .cli
+            default: return nil
             }
-            return .api(APISettings(model: name, key: secret))
-        case .alertSecondButtonReturn: return .cli
-        default: return nil
         }
     }
 }
