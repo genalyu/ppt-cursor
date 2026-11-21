@@ -49,11 +49,7 @@ class UnsavedObjectError(ValueError):
     pass
 
 
-def native_shape_id(tree, live_key):
-    name, occurrence = json.loads(live_key)
-    if not isinstance(name, str) or type(occurrence) is not int or occurrence < 1:
-        raise ValueError("Expected a live object ID containing a name and occurrence")
-    count = 0
+def native_shape_identities(tree):
     for child in tree.childNodes:
         if child.nodeType != Node.ELEMENT_NODE or child.localName in ("nvGrpSpPr", "grpSpPr", "extLst"):
             continue
@@ -63,7 +59,17 @@ def native_shape_id(tree, live_key):
             continue
         identity = next((node for node in metadata.childNodes if node.namespaceURI == P
                          and node.localName == "cNvPr"), None)
-        if identity is not None and identity.getAttribute("name") == name:
+        if identity is not None:
+            yield identity
+
+
+def native_shape_id(tree, live_key):
+    name, occurrence = json.loads(live_key)
+    if not isinstance(name, str) or type(occurrence) is not int or occurrence < 1:
+        raise ValueError("Expected a live object ID containing a name and occurrence")
+    count = 0
+    for identity in native_shape_identities(tree):
+        if identity.getAttribute("name") == name:
             count += 1
             if count == occurrence:
                 return int(identity.getAttribute("id"))
@@ -405,8 +411,12 @@ def copy_live_geometry(source, selector, current, baseline):
         tree, = slide.getElementsByTagNameNS(P, "spTree")
         by_id = {int(shape.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id")): shape
                  for shape in tree.childNodes if shape.namespaceURI == P and shape.localName in ("sp", "pic")}
-        for obj in current["objects"]:
-            shape = by_id.get(native_shape_id(tree, obj["id"]))
+        live_ids = [native_shape_id(tree, obj["id"]) for obj in current["objects"]]
+        saved_ids = [int(identity.getAttribute("id")) for identity in native_shape_identities(tree)]
+        if saved_ids != live_ids:
+            raise UnsavedObjectError("当前对象或图层顺序尚未同步到 PPTX 文件")
+        for obj, identity in zip(current["objects"], live_ids):
+            shape = by_id.get(identity)
             if shape is None:
                 continue
             sync_live_text(slide, shape, obj.get("text"))
