@@ -380,7 +380,10 @@ def matches_document(identifier, source):
 
 def watch_preview(source, destination, session_canvas=None, references=()):
     """Wait for a settled object edit in this open document, then render one current proposal."""
-    script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
+    resources = Path(__file__).resolve().parent
+    script = resources / "PPTCursor_MacIntegration.bundle/snapshot.js"
+    if not script.is_file():
+        script = resources.parent / "Sources/MacIntegration/Resources/snapshot.js"
     timed_out = False
 
     def capture():
@@ -475,7 +478,13 @@ if __name__ == "__main__":
         source = args.source.resolve(strict=True)
         if source.suffix.lower() != ".pptx" or not source.is_file():
             parser.error("请选择本地 PPTX 文稿")
-        for tool in ("swift", "codex", "pdftoppm"):
+        root = Path(__file__).resolve().parents[1]
+        canvas = root / "MacOS/PPTCursor"
+        bundled = canvas.is_file() and root.name == "Contents"
+        tools = ["codex", "pdftoppm"]
+        if not bundled:
+            tools.append("swift")
+        for tool in tools:
             if not shutil.which(tool):
                 parser.error(f"找不到 {tool}")
         if not shutil.which("soffice") and not Path("/Applications/LibreOffice.app/Contents/MacOS/soffice").is_file():
@@ -485,13 +494,14 @@ if __name__ == "__main__":
         except ImportError:
             parser.error("当前 Python 环境缺少 Pillow")
         refs = [path.resolve(strict=True) for path in args.reference]
-        root = Path(__file__).resolve().parents[1]
-        subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
-        binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
+        if not bundled:
+            subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
+            binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
+            canvas = Path(binary_dir) / "PPTCursor"
         print("正在等待 PowerPoint 中的编辑。按 Control-C 结束。", flush=True)
         try:
             with tempfile.TemporaryDirectory() as folder:
-                watch_preview(source, Path(folder) / "preview", Path(binary_dir) / "PPTCursor", refs)
+                watch_preview(source, Path(folder) / "preview", canvas, refs)
         except KeyboardInterrupt:
             pass
         raise SystemExit(0)
