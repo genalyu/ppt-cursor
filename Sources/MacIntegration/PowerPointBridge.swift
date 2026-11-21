@@ -89,9 +89,21 @@ public enum PowerPointBridge {
         process.standardOutput = output
         process.standardError = output
         try process.run()
+        // A macOS authorization dialog can hold the first document lookup indefinitely.
+        // Only the metadata reader is safe to interrupt here. An apply operation may be mid-write.
+        let lookupDeadline = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
+        }
+        if arguments == ["document"] {
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 30, execute: lookupDeadline)
+        }
+        defer { lookupDeadline.cancel() }
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
+            if arguments == ["document"] && process.terminationReason == .uncaughtSignal {
+                throw BridgeFailure("未能及时读取当前文稿。请处理 macOS 或 PowerPoint 的弹窗，然后再次点击“启动开放式预测”。")
+            }
             let detail = String(decoding: data, as: UTF8.self)
             if detail.contains("(-1743)") {
                 throw BridgeFailure("请在系统设置 → 隐私与安全性 → 自动化中允许 PPT Cursor 控制 Microsoft PowerPoint，然后返回幻灯片。")
