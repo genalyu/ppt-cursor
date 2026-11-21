@@ -528,8 +528,12 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     def capture():
         nonlocal timed_out
         try:
-            data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20)
-        except subprocess.TimeoutExpired:
+            data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20,
+                                           stderr=subprocess.PIPE)
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+            if isinstance(error, subprocess.CalledProcessError) and b"(-1712)" not in (error.stderr or b""):
+                detail = (error.stderr or b"").decode("utf-8", errors="replace").strip()
+                raise RuntimeError(detail or "无法读取 PowerPoint 状态") from error
             if not timed_out:
                 print("等待 PowerPoint 响应。若有打开的对话框，请处理后继续编辑。", file=sys.stderr, flush=True)
             timed_out = True
