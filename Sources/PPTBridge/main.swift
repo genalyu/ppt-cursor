@@ -22,11 +22,8 @@ func predict(arguments: [String]) throws {
         context = history.observe(state)
     }
     guard let context else { throw CLIError.noChange }
-    let candidates = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":")
-        .map { String($0) + "/codex" } +
-        ["/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"]
-    guard let path = candidates.first(where: FileManager.default.isExecutableFile(atPath:)) else { throw CLIError.codexMissing }
-    let prediction = try Predictor(executable: URL(fileURLWithPath: path)).predict(context, images: images)
+    guard let executable = CodexInstallation.executable(preferShellPath: true) else { throw CLIError.codexMissing }
+    let prediction = try Predictor(executable: executable).predict(context, images: images)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     FileHandle.standardOutput.write(try encoder.encode(prediction))

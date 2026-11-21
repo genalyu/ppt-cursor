@@ -344,12 +344,10 @@ final class Controller: NSObject, NSApplicationDelegate {
                 if let connection {
                     return try APIPredictor(settings: connection).predict(context, images: references, currentPage: page, run: run)
                 }
-                let paths = ["/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
-                             "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
-                guard let path = paths.first(where: FileManager.default.isExecutableFile(atPath:)) else {
+                guard let executable = CodexInstallation.executable() else {
                     throw NSError(domain: "PPTCursor", code: 1, userInfo: [NSLocalizedDescriptionKey: "请安装并登录 Codex CLI"])
                 }
-                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, images: references, currentPage: page, run: run)
+                return try Predictor(executable: executable).predict(context, images: references, currentPage: page, run: run)
             }
             DispatchQueue.main.async {
                 self.inference = nil
