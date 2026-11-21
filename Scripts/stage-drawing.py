@@ -307,6 +307,7 @@ def predict_preview(source, selector, history_file, output):
         fragment = scratch / "drawing.xml"
         fragment.write_text(proposal["drawing"])
         render_pair(baseline, selector, fragment, output, proposal["replaceID"])
+        (output / "summary.txt").write_text(proposal["summary"])
         acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if acceptance:
             (output / "accept.json").write_text(json.dumps(acceptance))

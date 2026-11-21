@@ -2,6 +2,13 @@ import AppKit
 import CursorCore
 import MacIntegration
 
+private final class StagedActions: NSObject {
+    let apply: () -> Void
+    init(apply: @escaping () -> Void) { self.apply = apply }
+    @objc func accept() { apply() }
+    @objc func dismiss() { NSApp.terminate(nil) }
+}
+
 enum StagedPreview {
     static func display(directory: URL) throws {
         let baseline = try JSONDecoder().decode(SlideSnapshot.self, from: Data(contentsOf: directory.appendingPathComponent("baseline.json")))
@@ -28,7 +35,7 @@ enum StagedPreview {
         panel.contentView = view
         panel.orderFrontRegardless()
         let proposal = try? JSONDecoder().decode(Prediction.self, from: Data(contentsOf: directory.appendingPathComponent("accept.json")))
-        let shortcut = AcceptShortcut {
+        let actions = StagedActions {
             guard powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
                   let proposal else { return }
             panel.orderOut(nil)
@@ -36,15 +43,21 @@ enum StagedPreview {
             catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
             app.terminate(nil)
         }
+        let shortcut = AcceptShortcut { actions.accept() }
+        var shortcutLabel: String?
         if let proposal {
             try proposal.validate(for: baseline)
-            if let key = shortcut.registerPreferred(useTab: baseline.editingText == false) {
-                print(proposal.summary + " · " + key + " 采纳")
-            }
+            shortcutLabel = shortcut.registerPreferred(useTab: baseline.editingText == false)
         }
+        let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
+        let controls = SuggestionPanel(summary: proposal == nil ? "仅预览 · " + summary : summary,
+                                       shortcutLabel: shortcutLabel, owner: actions,
+                                       accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
+                                       page: frame, canAccept: proposal != nil)
+        controls.orderFrontRegardless()
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
-            guard powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
+            guard powerpoint.isActive, (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
                   let current = PowerPointWindow.front(of: powerpoint),
                   current.id == window.id, current.frame == window.frame else {
                 app.terminate(nil)
@@ -60,7 +73,7 @@ enum StagedPreview {
                 }
             }
         }
-        defer { shortcut.disable(); timer.invalidate(); panel.orderOut(nil) }
+        defer { shortcut.disable(); timer.invalidate(); controls.orderOut(nil); panel.orderOut(nil) }
         app.run()
     }
 }

@@ -3,7 +3,7 @@ import AppKit
 /// A nonactivating control at the page edge leaves the entire slide preview click-through.
 final class SuggestionPanel: NSPanel {
     init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
-         page: NSRect) {
+         page: NSRect, canAccept: Bool = true) {
         let width = min(420, max(240, page.width - 16))
         let size = NSSize(width: width, height: 84)
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
@@ -26,7 +26,7 @@ final class SuggestionPanel: NSPanel {
         label.toolTip = summary
         let confirm = NSButton(title: shortcutLabel.map { "采纳  " + $0 } ?? "采纳", target: owner, action: accept)
         let skip = NSButton(title: "忽略", target: owner, action: dismiss)
-        let buttons = NSStackView(views: [confirm, skip])
+        let buttons = NSStackView(views: canAccept ? [confirm, skip] : [skip])
         for view in [label as NSView, buttons] {
             surface.addSubview(view)
             view.translatesAutoresizingMaskIntoConstraints = false
