@@ -569,7 +569,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 self.applying = false
                 guard revision == self.generation else { return }
                 switch result {
-                case .success(let state): _ = self.history.observe(state); self.message("已采纳")
+                case .success(let state): _ = self.history.observe(state, acceptedSuggestion: proposal.summary); self.message("已采纳")
                 case .failure(let error): self.message(error.localizedDescription)
                 }
             }

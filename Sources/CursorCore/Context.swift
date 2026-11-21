@@ -40,6 +40,8 @@ public struct EditContext: Encodable, Sendable {
     public var imagesJustImported = false
     public var recentlyDismissed: [String] = []
 
+    var acceptedTransitions: [String?] = []
+
     private struct Transition: Encodable {
         let before, after: [SlideObject]
         let selectionBefore, selectionAfter: [String]?
@@ -47,7 +49,10 @@ public struct EditContext: Encodable, Sendable {
         let previousOrder, nextOrder: [String]?
         let previousPageSize, nextPageSize: [Double]?
 
-        init(from old: SlideSnapshot, to new: SlideSnapshot) {
+        let acceptedSuggestion: String?
+
+        init(from old: SlideSnapshot, to new: SlideSnapshot, acceptedSuggestion: String?) {
+            self.acceptedSuggestion = acceptedSuggestion
             let oldIndex = Dictionary(grouping: old.objects, by: \.id)
             let newIndex = Dictionary(grouping: new.objects, by: \.id)
             before = old.objects.filter { newIndex[$0.id]?.contains($0) != true }
@@ -80,7 +85,10 @@ public struct EditContext: Encodable, Sendable {
         if imagesJustImported { try output.encode(true, forKey: .imagesJustImported) }
         if !recentlyDismissed.isEmpty { try output.encode(recentlyDismissed, forKey: .recentlyDismissed) }
         let states = previous + [current]
-        let transitions = zip(states, states.dropFirst()).map { Transition(from: $0, to: $1) }
+        let transitions = previous.indices.map { index in
+            Transition(from: states[index], to: states[index + 1],
+                       acceptedSuggestion: acceptedTransitions.indices.contains(index) ? acceptedTransitions[index] : nil)
+        }
         try output.encode(transitions, forKey: .transitions)
     }
 }
@@ -88,9 +96,11 @@ public struct EditContext: Encodable, Sendable {
 /// Geometry, content and stacking order are part of the baseline used to reject stale suggestions.
 public struct EditHistory: Sendable {
     private var states: [SlideSnapshot] = []
+    private var acceptedTransitions: [String?] = []
     private var dismissed: [(summary: String, remaining: Int)] = []
     private struct SavedPage: Sendable {
         let slideID: Int
+        let acceptedTransitions: [String?]
         let states: [SlideSnapshot]
         let dismissed: [(summary: String, remaining: Int)]
     }
@@ -107,12 +117,13 @@ public struct EditHistory: Sendable {
     public var currentContext: EditContext? {
         guard let current else { return nil }
         return EditContext(previous: Array(states.dropLast()), current: current,
-                           recentlyDismissed: dismissed.map(\.summary))
+                           recentlyDismissed: dismissed.map(\.summary), acceptedTransitions: acceptedTransitions)
     }
 
     public mutating func reset() {
         recentPages.removeAll()
         states.removeAll()
+        acceptedTransitions.removeAll()
         dismissed.removeAll()
     }
 
@@ -124,7 +135,7 @@ public struct EditHistory: Sendable {
     }
 
     /// Initial observation seeds history. Only a real change on the same slide starts prediction.
-    public mutating func observe(_ state: SlideSnapshot) -> EditContext? {
+    public mutating func observe(_ state: SlideSnapshot, acceptedSuggestion: String? = nil) -> EditContext? {
         guard let last = current, last.document == state.document else {
             reset()
             states = [state]
@@ -133,14 +144,16 @@ public struct EditHistory: Sendable {
         if last.slideID != state.slideID {
             let saved = recentPages.first { $0.slideID == state.slideID }
             recentPages.removeAll { $0.slideID == state.slideID }
-            recentPages.append(SavedPage(slideID: last.slideID, states: states, dismissed: dismissed))
+            recentPages.append(SavedPage(slideID: last.slideID, acceptedTransitions: acceptedTransitions, states: states, dismissed: dismissed))
             if recentPages.count > 3 { recentPages.removeFirst() }
             if let saved, let page = saved.states.last, page.objects == state.objects,
                page.width == state.width, page.height == state.height {
                 states = Array(saved.states.dropLast()) + [state]
+                acceptedTransitions = saved.acceptedTransitions
                 dismissed = saved.dismissed
             } else {
                 states = [state]
+                acceptedTransitions.removeAll()
                 dismissed.removeAll()
             }
             return nil
@@ -152,7 +165,11 @@ public struct EditHistory: Sendable {
             return nil
         }
         states.append(state)
-        if states.count > limit { states.removeFirst(states.count - limit) }
+        acceptedTransitions.append(acceptedSuggestion)
+        if states.count > limit {
+            states.removeFirst()
+            acceptedTransitions.removeFirst()
+        }
         let context = currentContext
         for index in dismissed.indices { dismissed[index].remaining -= 1 }
         dismissed.removeAll { $0.remaining == 0 }
