@@ -23,12 +23,16 @@ enum PageLocator {
 
     /// Recheck the perimeter in the very same captured frame before sending any cropped pixels.
     static func previewData(in window: PowerPointWindow, expected: CGRect, aspect: CGFloat) -> Data? {
+        guard let cropped = pageImage(in: window, expected: expected, aspect: aspect) else { return nil }
+        return NSBitmapImageRep(cgImage: cropped).representation(using: .png, properties: [:])
+    }
+
+    static func pageImage(in window: PowerPointWindow, expected: CGRect, aspect: CGFloat) -> CGImage? {
         guard let image = capture(window), let pixels = pagePixels(in: image, aspect: aspect) else { return nil }
         let actual = screenRect(pixels, image: image, window: window)
         guard abs(actual.minX - expected.minX) <= 3, abs(actual.minY - expected.minY) <= 3,
-              abs(actual.maxX - expected.maxX) <= 3, abs(actual.maxY - expected.maxY) <= 3,
-              let cropped = image.cropping(to: pixels) else { return nil }
-        return NSBitmapImageRep(cgImage: cropped).representation(using: .png, properties: [:])
+              abs(actual.maxX - expected.maxX) <= 3, abs(actual.maxY - expected.maxY) <= 3 else { return nil }
+        return image.cropping(to: pixels)
     }
 
     private static func pagePixels(in image: CGImage, aspect: CGFloat) -> CGRect? {
