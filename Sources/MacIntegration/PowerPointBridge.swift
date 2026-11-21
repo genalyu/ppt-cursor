@@ -40,7 +40,11 @@ public enum PowerPointBridge {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw BridgeFailure(String(decoding: data.prefix(1500), as: UTF8.self))
+            let detail = String(decoding: data, as: UTF8.self)
+            if detail.contains("(-1743)") {
+                throw BridgeFailure("请在系统设置 → 隐私与安全性 → 自动化中允许 PPT Cursor 控制 Microsoft PowerPoint，然后返回幻灯片。")
+            }
+            throw BridgeFailure(String(detail.prefix(1500)))
         }
         return try JSONDecoder().decode(SlideSnapshot?.self, from: data)
     }
