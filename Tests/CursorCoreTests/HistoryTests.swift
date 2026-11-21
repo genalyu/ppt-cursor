@@ -28,6 +28,25 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(next?.previous, [selected])
     }
 
+    func testModelSeesOrderedChangesAndUnchangedObjectsOnlyOnce() throws {
+        let stationary = SlideObject(id: "fixed", kind: "shape", name: "Background", text: nil,
+                                    x: 0, y: 0, width: 960, height: 540, rotation: 0)
+        func page(_ x: Double) -> SlideSnapshot {
+            SlideSnapshot(document: "demo", slideID: 1, width: 960, height: 540,
+                          objects: [stationary] + snapshot(x).objects)
+        }
+        let context = EditContext(previous: [page(10), page(20)], current: page(30))
+        let data = try JSONEncoder().encode(context)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let steps = json?["transitions"] as? [[String: Any]]
+        func positions(_ key: String) -> [Double]? {
+            steps?.flatMap { ($0[key] as? [[String: Any]])?.compactMap { $0["x"] as? Double } ?? [] }
+        }
+        XCTAssertEqual(positions("before"), [10, 20])
+        XCTAssertEqual(positions("after"), [20, 30])
+        XCTAssertEqual(String(decoding: data, as: UTF8.self).components(separatedBy: "Background").count, 2)
+    }
+
     func testDocumentAndSlideChangesReseedContext() {
         var history = EditHistory()
         _ = history.observe(snapshot(0))
