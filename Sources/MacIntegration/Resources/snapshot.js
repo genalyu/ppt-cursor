@@ -134,13 +134,15 @@ function run(args) {
     function write(shape, p, rotation, text, fontSize) {
         // PowerPoint couples both dimensions when aspect locking is enabled. Write the
         // previewed geometry as a pair, then restore the editor's original lock setting.
+        // The PowerPoint Apple event bridge drops bare line feeds.
+        const nativeText = text == null ? null : text.replace(/\r\n|\n/g, "\r");
         const close = (a, b) => Math.abs(a - b) <= 0.02;
         const resize = !close(shape.width(), p.width) || !close(shape.height(), p.height);
         const locked = resize && shape.lockAspectRatio() === true;
         if (locked) shape.lockAspectRatio = false;
         try {
-            if (text != null && String(shape.textFrame.textRange.content()) !== text) {
-                shape.textFrame.textRange.content = text;
+            if (nativeText != null && String(shape.textFrame.textRange.content()) !== nativeText) {
+                shape.textFrame.textRange.content = nativeText;
             }
             if (fontSize != null && !close(shape.textFrame.textRange.font.fontSize(), fontSize)) {
                 shape.textFrame.textRange.font.fontSize = fontSize;
@@ -153,6 +155,7 @@ function run(args) {
         } finally {
             if (locked) shape.lockAspectRatio = true;
         }
+        if (nativeText != null && String(shape.textFrame.textRange.content()) !== nativeText) throw Error("文字与预览不符");
         if (fontSize != null && !close(shape.textFrame.textRange.font.fontSize(), fontSize)) throw Error("字号与预览不符");
         const angleDifference = ((shape.rotation() - rotation) % 360 + 540) % 360 - 180;
         if (!close(shape.width(), p.width) || !close(shape.height(), p.height) ||
