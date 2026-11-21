@@ -6,7 +6,8 @@ private final class StagedActions: NSObject {
     let apply: () -> Void
     init(apply: @escaping () -> Void) { self.apply = apply }
     @objc func accept() { apply() }
-    @objc func dismiss() { NSApp.terminate(nil) }
+    var onDismiss: (() -> Void)?
+    @objc func dismiss() { onDismiss?(); NSApp.terminate(nil) }
 }
 
 enum StagedPreview {
@@ -62,6 +63,11 @@ enum StagedPreview {
                     }
                 }
             }
+        }
+        actions.onDismiss = {
+            guard !submitted else { return }
+            do { try Data().write(to: directory.appendingPathComponent("dismissed"), options: .atomic) }
+            catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
         }
         let shortcut = AcceptShortcut { actions.accept() }
         activeShortcut = shortcut
