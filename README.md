@@ -31,6 +31,8 @@ open "dist/PPT Cursor.app"
 
 发布者可将 `PPT_CURSOR_SIGN_IDENTITY` 设为钥匙串中的 Developer ID Application 证书名，将 `PPT_CURSOR_NOTARY_PROFILE` 设为已配置的 notarytool 钥匙串配置名，然后运行 `./Scripts/package-mac.sh`。脚本会签名、提交公证、将票据附加到应用，并解压最终 ZIP 检查票据。默认本地构建使用临时签名。
 
+发布正式版时，使 GitHub 上的版本标签（如 `v0.1.0`）与应用版本及当前提交一致。在已登录 GitHub CLI、装有完整 Xcode 的发布机上，配置上述两项钥匙串设置后运行 `./Scripts/publish-mac.sh`。脚本执行测试和公证打包，将 ZIP 和校验文件上传至 GitHub 草稿，上传成功后公开发布。
+
 ## 选择模型连接
 
 默认使用本机 Codex 登录。也可从控制窗口点击「模型连接…」，填写支持图像输入及结构化输出的 OpenAI 模型名称和 API 密钥，再选择「使用 API」。此模式通过 Responses API 预测，按该 API 账户的用量计费。密钥只在本次运行的内存中使用。退出应用后恢复默认连接。
