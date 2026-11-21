@@ -15,7 +15,7 @@ final class SuggestionPanel: NSPanel {
     }
 
     init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
-         page: NSRect, canAccept: Bool = true) {
+         page: NSRect, canAccept: Bool = true, actionTitle: String? = nil) {
         let width = min(420, max(240, page.width - 16))
         let size = NSSize(width: width, height: 84)
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
@@ -36,7 +36,7 @@ final class SuggestionPanel: NSPanel {
         label.maximumNumberOfLines = 2
         label.lineBreakMode = .byTruncatingTail
         label.toolTip = summary
-        confirm.title = shortcutLabel.map { "采纳  " + $0 } ?? "采纳"
+        confirm.title = actionTitle ?? shortcutLabel.map { "采纳  " + $0 } ?? "采纳"
         confirm.target = owner
         confirm.action = accept
         skip.title = "忽略"

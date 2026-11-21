@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import CursorCore
 import MacIntegration
 
@@ -40,8 +41,27 @@ enum StagedPreview {
         weak var feedbackPanel: SuggestionPanel?
         weak var activeShortcut: AcceptShortcut?
         let actions = StagedActions {
-            guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
-                  let proposal else { return }
+            guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
+            guard let proposal else {
+                submitted = true
+                panel.orderOut(nil)
+                feedbackPanel?.orderOut(nil)
+                let save = NSSavePanel()
+                save.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
+                save.nameFieldStringValue = "PowerPoint 建议副本.pptx"
+                save.message = "将预览时的文稿另存为可编辑副本。请选择新文件名。"
+                app.activate(ignoringOtherApps: true)
+                if save.runModal() == .OK, let destination = save.url {
+                    do {
+                        try FileManager.default.copyItem(at: directory.appendingPathComponent("after.pptx"), to: destination)
+                    } catch {
+                        NSAlert(error: error).runModal()
+                    }
+                }
+                powerpoint.activate(options: [])
+                app.terminate(nil)
+                return
+            }
             submitted = true
             activeShortcut?.disable()
             panel.orderOut(nil)
@@ -77,10 +97,10 @@ enum StagedPreview {
             shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
         }
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
-        let controls = SuggestionPanel(summary: proposal == nil ? "仅预览 · " + summary : summary,
+        let controls = SuggestionPanel(summary: proposal == nil ? "可保存为副本 · " + summary : summary,
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
-                                       page: frame, canAccept: proposal != nil)
+                                       page: frame, actionTitle: proposal == nil ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
         var reading = false
