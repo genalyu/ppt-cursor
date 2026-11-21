@@ -13,6 +13,10 @@ private final class StagedActions: NSObject {
 
 enum StagedPreview {
     static func display(directory: URL) throws {
+        let diagnostics = ProcessInfo.processInfo.environment["PPT_CURSOR_TRACE_PREVIEW"] == "1"
+        func trace(_ event: String) {
+            if diagnostics { FileHandle.standardError.write(Data(("preview: " + event + "\n").utf8)) }
+        }
         let baseline = try JSONDecoder().decode(SlideSnapshot.self, from: Data(contentsOf: directory.appendingPathComponent("baseline.json")))
         guard let image = NSImage(contentsOf: directory.appendingPathComponent("overlay.png")),
               let powerpoint = NSWorkspace.shared.frontmostApplication,
@@ -118,7 +122,10 @@ enum StagedPreview {
             do { try Data().write(to: directory.appendingPathComponent("dismissed"), options: .atomic) }
             catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
         }
-        let shortcut = AcceptShortcut { actions.accept() }
+        let shortcut = AcceptShortcut {
+            trace("shortcut received")
+            actions.accept()
+        }
         activeShortcut = shortcut
         var shortcutLabel: String?
         if let proposal {
@@ -132,10 +139,12 @@ enum StagedPreview {
                                        page: frame, actionTitle: proposal == nil ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
         let workspaceEvents = NSWorkspace.shared.notificationCenter
         let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                        object: nil, queue: .main) { _ in
             guard !submitted, !powerpoint.isActive else { return }
+            trace("dismissed on application switch")
             shortcut.disable()
             panel.orderOut(nil)
             controls.orderOut(nil)
@@ -148,6 +157,7 @@ enum StagedPreview {
             guard powerpoint.isActive, (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
                   let current = PowerPointWindow.front(of: powerpoint),
                   current.id == window.id, current.frame == window.frame else {
+                trace("dismissed on foreground, pointer or window change")
                 app.terminate(nil)
                 return
             }
@@ -157,7 +167,10 @@ enum StagedPreview {
                 let valid = matchesPage(current) && (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
-                    if !submitted && !valid { app.terminate(nil) }
+                    if !submitted && !valid {
+                        trace("dismissed on page or selection change")
+                        app.terminate(nil)
+                    }
                 }
             }
         }
