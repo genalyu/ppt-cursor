@@ -89,6 +89,10 @@ for x in [2.01, 2.03] {
     precondition(move.edits.count == (x == 2.01 ? 0 : 1))
 }
 MockAPI.overrideSuggestion = nil
+do {
+    try result.validate(for: context.current, images: [image, image])
+    fatalError("Accepted ambiguous reference IDs")
+} catch PredictionError.invalidSuggestion { }
 let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
 let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
 do { try combination.validate(for: context.current); fatalError("Accepted text on a non-text object") }

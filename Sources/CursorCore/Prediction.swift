@@ -33,7 +33,7 @@ public struct Prediction: Codable, Sendable {
     public func validate(for slide: SlideSnapshot, images: [ReferenceImage] = []) throws {
         let sources = Dictionary(slide.objects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let originals = edits.filter { $0.duplicate != true }.map(\.id)
-        guard summary.count <= 500, edits.count <= 100, artwork.count <= 12,
+        guard Set(images.map(\.id)).count == images.count, summary.count <= 500, edits.count <= 100, artwork.count <= 12,
               Set(originals).count == originals.count,
               edits.allSatisfy({ edit in
                   guard let source = sources[edit.id], edit.placement.validate(in: slide),
@@ -148,8 +148,8 @@ public struct Predictor: Sendable {
             try currentPage.write(to: pageURL)
             attachments += ["--image", pageURL.path]
         }
-        for image in images {
-            let url = dir.appendingPathComponent(image.id + ".png")
+        for (index, image) in images.enumerated() {
+            let url = dir.appendingPathComponent("reference-\(index).png")
             try image.thumbnail.write(to: url)
             attachments += ["--image", url.path]
         }
