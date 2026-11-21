@@ -802,6 +802,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             return state
         return None
 
+    recent_pages = {}
     history = []
     last_prediction = None
     dismissed = []
@@ -814,23 +815,40 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             if state == "deferred":
                 time.sleep(0.5)
                 continue
+            if not state:
+                history.clear()
+                recent_pages.clear()
+                last_prediction = None
+                dismissed.clear()
+                awaiting_save = None
+                time.sleep(0.5)
+                continue
+            if not history or history[-1]["slideID"] != state["slideID"]:
+                if history:
+                    previous_id = history[-1]["slideID"]
+                    recent_pages[previous_id] = (history, last_prediction, dismissed, awaiting_save)
+                saved = recent_pages.pop(state["slideID"], None)
+                if len(recent_pages) > 3:
+                    del recent_pages[next(iter(recent_pages))]
+                if saved and slide_content(saved[0][-1]) == slide_content(state):
+                    history, last_prediction, dismissed, awaiting_save = saved
+                    history[-1] = refreshed_snapshot(history[-1], state)
+                else:
+                    history = [state]
+                    last_prediction = None
+                    dismissed = []
+                    awaiting_save = None
+                time.sleep(0.5)
+                continue
             if awaiting_save is not None:
-                if state and state["slideID"] == awaiting_save[0] and slide_content(state) == last_prediction:
+                if slide_content(state) == last_prediction:
                     if file_revision(source) == awaiting_save[1]:
                         time.sleep(0.5)
                         continue
                     last_prediction = None
                     references_pending = bool(references)
                 awaiting_save = None
-            if not state:
-                history.clear()
-                last_prediction = None
-                dismissed.clear()
-            elif not history or history[-1]["slideID"] != state["slideID"]:
-                history = [state]
-                last_prediction = None
-                dismissed.clear()
-            elif slide_content(history[-1]) != slide_content(state):
+            if slide_content(history[-1]) != slide_content(state):
                 history = history[-7:] + [state]
             elif (len(history) > 1 or references_pending) and slide_content(state) != last_prediction:
                 references_pending = False
