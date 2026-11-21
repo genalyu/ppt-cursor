@@ -824,6 +824,8 @@ if __name__ == "__main__":
         parser.add_argument("--named-reference", nargs=2, action="append", default=[], metavar=("PNG", "NAME"), help="参考预览图和原始文件名")
         parser.add_argument("--include-page", action="store_true", help="向模型发送当前页的排版预览")
         args = parser.parse_args(sys.argv[2:])
+        if os.getpgrp() != os.getpid() and os.environ.get("PPT_CURSOR_MANAGED_SESSION") == "1":
+            os.setpgid(0, 0)
         source = args.source.resolve(strict=True)
         if source.suffix.lower() != ".pptx" or not source.is_file():
             parser.error("请选择本地 PPTX 文稿")
@@ -848,7 +850,7 @@ if __name__ == "__main__":
             subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
             binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
             canvas = Path(binary_dir) / "PPTCursor"
-        print("正在等待 PowerPoint 中的编辑。按 Control-C 结束。", flush=True)
+        print("正在等待 PowerPoint 中的编辑。", flush=True)
         try:
             with tempfile.TemporaryDirectory() as folder:
                 watch_preview(source, Path(folder) / "preview", canvas, refs, args.include_page)

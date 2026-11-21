@@ -18,8 +18,8 @@ final class SetupWindow: NSWindow {
         start.keyEquivalent = "\r"
         let assets = NSButton(title: "选择图片素材…", target: owner, action: chooseImages)
         let settings = NSButton(title: "模型连接…", target: owner, action: modelSettings)
-        let native = NSButton(title: "在终端启动开放式预测…", target: owner, action: openNativeSession)
-        native.toolTip = "使用 Codex CLI 生成原生图形建议。在终端按 Control-C 结束会话。"
+        let native = NSButton(title: "启动开放式预测…", target: owner, action: openNativeSession)
+        native.toolTip = "使用 Codex CLI 生成原生图形建议。可从菜单栏停止会话。"
         let buttons = NSStackView(views: [start, native])
         let options = NSStackView(views: [assets, settings])
         state.textColor = .secondaryLabelColor
