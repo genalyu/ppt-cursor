@@ -63,17 +63,25 @@ def native_shape_identities(tree):
             yield identity
 
 
-def native_shape_id(tree, live_key):
+def native_shape_index(tree):
+    counts = {}
+    identities = {}
+    for identity in native_shape_identities(tree):
+        name = identity.getAttribute("name")
+        occurrence = counts.get(name, 0) + 1
+        counts[name] = occurrence
+        identities[name, occurrence] = int(identity.getAttribute("id"))
+    return identities
+
+
+def native_shape_id(index, live_key):
     name, occurrence = json.loads(live_key)
     if not isinstance(name, str) or type(occurrence) is not int or occurrence < 1:
         raise ValueError("Expected a live object ID containing a name and occurrence")
-    count = 0
-    for identity in native_shape_identities(tree):
-        if identity.getAttribute("name") == name:
-            count += 1
-            if count == occurrence:
-                return int(identity.getAttribute("id"))
-    raise UnsavedObjectError("当前对象尚未同步到 PPTX 文件")
+    try:
+        return index[name, occurrence]
+    except KeyError:
+        raise UnsavedObjectError("当前对象尚未同步到 PPTX 文件") from None
 
 
 def model_shape(shape):
@@ -87,7 +95,8 @@ def model_shape(shape):
 
 
 def model_shapes(tree, current):
-    objects = {native_shape_id(tree, obj["id"]): obj["id"] for obj in current["objects"]}
+    index = native_shape_index(tree)
+    objects = {native_shape_id(index, obj["id"]): obj["id"] for obj in current["objects"]}
     shapes = []
     for shape in tree.childNodes:
         if shape.namespaceURI == P and shape.localName == "sp":
@@ -130,7 +139,7 @@ def stage(source, part, fragment, output, replace_id=None):
             shape.setAttribute("xmlns:a", A)
             replacement = slide.importNode(shape, True)
             if isinstance(replace_id, str):
-                replace_id = native_shape_id(tree, replace_id)
+                replace_id = native_shape_id(native_shape_index(tree), replace_id)
             if replace_id is None:
                 identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
                 identity.setAttribute("id", str(max(ids, default=0) + 1))
@@ -160,7 +169,8 @@ def stage(source, part, fragment, output, replace_id=None):
 def native_acceptance(tree, replace_id, drawing, current, summary):
     """Use the live bridge only when its properties completely explain the rendered edit."""
     after_xml = f'<root xmlns:p="{P}" xmlns:a="{A}">{drawing}</root>'
-    live_objects = {native_shape_id(tree, obj["id"]): obj for obj in current["objects"]}
+    index = native_shape_index(tree)
+    live_objects = {native_shape_id(index, obj["id"]): obj for obj in current["objects"]}
     best_edit = None
     best_score = None
     # Parse the slide root so inherited namespaces on Office extension metadata resolve.
@@ -422,8 +432,9 @@ def copy_live_geometry(source, selector, current, baseline):
         tree, = slide.getElementsByTagNameNS(P, "spTree")
         by_id = {int(shape.getElementsByTagNameNS(P, "cNvPr")[0].getAttribute("id")): shape
                  for shape in tree.childNodes if shape.namespaceURI == P and shape.localName in ("sp", "pic")}
-        live_ids = [native_shape_id(tree, obj["id"]) for obj in current["objects"]]
-        saved_ids = [int(identity.getAttribute("id")) for identity in native_shape_identities(tree)]
+        index = native_shape_index(tree)
+        live_ids = [native_shape_id(index, obj["id"]) for obj in current["objects"]]
+        saved_ids = list(index.values())
         if saved_ids != live_ids:
             raise UnsavedObjectError("当前对象或图层顺序尚未同步到 PPTX 文件")
         for obj, identity in zip(current["objects"], live_ids):
