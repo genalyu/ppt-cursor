@@ -4,9 +4,9 @@ import CursorCore
 import MacIntegration
 
 private final class StagedActions: NSObject {
-    let apply: () -> Void
-    init(apply: @escaping () -> Void) { self.apply = apply }
-    @objc func accept() { apply() }
+    let apply: (String) -> Void
+    init(apply: @escaping (String) -> Void) { self.apply = apply }
+    @objc func accept() { apply("采纳按钮") }
     var onDismiss: (() -> Void)?
     @objc func dismiss() { onDismiss?(); NSApp.terminate(nil) }
 }
@@ -105,7 +105,7 @@ enum StagedPreview {
             current.id == window.id && current.frame == displayedWindow.frame &&
                 locate(current) == displayedPage
         }
-        let actions = StagedActions {
+        let actions = StagedActions { input in
             guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
             guard let current = PowerPointWindow.front(of: powerpoint), matchesPage(current) else {
                 app.terminate(nil)
@@ -166,6 +166,7 @@ enum StagedPreview {
                     case .success(let state):
                         do {
                             try JSONEncoder().encode(state).write(to: directory.appendingPathComponent("accepted.json"), options: .atomic)
+                            print("已通过\(input)将建议写入 PowerPoint。")
                         } catch {
                             FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
                         }
@@ -182,12 +183,13 @@ enum StagedPreview {
             do { try Data().write(to: directory.appendingPathComponent("dismissed"), options: .atomic) }
             catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
         }
+        var shortcutLabel: String?
         let shortcut = AcceptShortcut {
             trace("shortcut received")
-            actions.accept()
+            guard let shortcutLabel else { return }
+            actions.apply("快捷键 " + shortcutLabel)
         }
         activeShortcut = shortcut
-        var shortcutLabel: String?
         if direct {
             try proposal?.validate(for: baseline)
             shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
@@ -271,8 +273,8 @@ enum StagedPreview {
                         guard NSEvent.pressedMouseButtons == 0 else { return }
                         hidden = false
                         if direct {
-                            let label = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
-                            controls.updateShortcut(label)
+                            shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
+                            controls.updateShortcut(shortcutLabel)
                         }
                         panel.orderFrontRegardless()
                         controls.orderFrontRegardless()
