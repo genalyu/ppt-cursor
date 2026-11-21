@@ -217,6 +217,7 @@ function run(args) {
     }
     const inserted = [];
     const started = [];
+    if (!app.frontmost()) throw Error("PowerPoint 已切至后台，建议未执行");
     try {
         for (const change of changes.filter(change => change.edit.duplicate)) {
             pasteArtwork(change.edit, change.shape);
