@@ -15,6 +15,7 @@ import time
 from xml.dom import Node, minidom
 from xml.parsers.expat import ExpatError
 from xml.etree import ElementTree
+from urllib.parse import unquote, urlsplit
 from zipfile import ZipFile
 
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -316,13 +317,37 @@ def predict_preview(source, selector, history_file, output):
         print(proposal["summary"])
 
 
+def matches_document(identifier, source):
+    """Match a saved local document by filesystem identity across Office path formats."""
+    if identifier.startswith("/"):
+        candidate = Path(identifier)
+    elif identifier.startswith("file:"):
+        url = urlsplit(identifier)
+        if url.netloc not in ("", "localhost") or url.query or url.fragment:
+            return False
+        candidate = Path(unquote(url.path))
+        if not candidate.is_absolute():
+            return False
+    elif ":" in identifier and "://" not in identifier:
+        volume, *parts = identifier.split(":")
+        if not volume or not all(parts) or "/" in volume:
+            return False
+        candidate = Path("/Volumes", volume, *(part.replace("/", ":") for part in parts))
+    else:
+        return False
+    try:
+        return candidate.samefile(source)
+    except (OSError, ValueError):
+        return False
+
+
 def watch_preview(source, destination, session_canvas=None):
     """Wait for a settled object edit in this open document, then render one current proposal."""
     script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
     def capture():
         data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script)], timeout=20)
         state = json.loads(data)
-        if state and Path(state["document"]).resolve() == source.resolve():
+        if state and matches_document(state["document"], source):
             return state
         return None
 
