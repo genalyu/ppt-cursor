@@ -60,6 +60,7 @@ swift build
 swift run ppt-inspect
 swift run ppt-inspect predict before.json intermediate.json current.json > suggestion.json
 swift run ppt-preview current.json suggestion.json preview.png
+swift run ppt-inspect render Examples/Tab-Demo.pptx 1 slide.png
 ```
 
 `ppt-inspect` 从当前 PowerPoint 编辑页读取 JSON。开发样本应使用自己的测试文稿。请勿将私有幻灯片内容提交到公开仓库。

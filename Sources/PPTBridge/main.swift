@@ -34,6 +34,12 @@ enum CLIError: Error { case usage, noChange, codexMissing }
 
 do {
     let arguments = Array(CommandLine.arguments.dropFirst())
+    if arguments.first == "render" {
+        guard arguments.count == 4, let page = Int(arguments[2]) else { throw CLIError.usage }
+        let png = try NativeSlideRenderer.render(file: URL(fileURLWithPath: arguments[1]), page: page)
+        try png.write(to: URL(fileURLWithPath: arguments[3]), options: .withoutOverwriting)
+        exit(0)
+    }
     if arguments.first == "predict" {
         try predict(arguments: Array(arguments.dropFirst()))
         exit(0)
