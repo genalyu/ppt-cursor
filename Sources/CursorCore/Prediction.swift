@@ -46,7 +46,7 @@ public struct Predictor: Sendable {
     public let executable: URL
     public init(executable: URL) { self.executable = executable }
 
-    public func predict(_ context: EditContext) throws -> Prediction {
+    public func predict(_ context: EditContext, run: PredictionRun = PredictionRun()) throws -> Prediction {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -68,8 +68,7 @@ public struct Predictor: Sendable {
         process.standardInput = handle
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try process.run()
-        process.waitUntilExit()
+        try run.execute(process)
         guard process.terminationStatus == 0 else { throw PredictionError.missingResult }
         let suggestion = try JSONDecoder().decode(Prediction.self, from: Data(contentsOf: result))
         try suggestion.validate(for: context.current)

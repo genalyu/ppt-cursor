@@ -12,7 +12,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var history = EditHistory()
     private var monitoring = false
     private var reading = false
-    private var predicting = false
+    private var inference: PredictionRun?
     private var applying = false
     private var waiting: EditContext?
     private var pending: (SlideSnapshot, Prediction)?
@@ -44,12 +44,15 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) { inference?.cancel() }
+
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
     }
     private func message(_ value: String) { status.title = value; item.button?.toolTip = value }
     private func invalidate() {
         generation += 1
+        inference?.cancel()
         pending = nil
         waiting = nil
         shortcut.disable()
@@ -112,6 +115,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                         self.invalidate()
                         self.waiting = context
                         self.message(context == nil ? "已读取幻灯片，等待编辑" : "正在判断下一步…")
+                        return
                     }
                     self.startPrediction()
                 case .failure(let error):
@@ -123,9 +127,10 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func startPrediction() {
-        guard !predicting, let context = waiting else { return }
+        guard inference == nil, let context = waiting else { return }
         waiting = nil
-        predicting = true
+        let run = PredictionRun()
+        inference = run
         let revision = generation
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { () throws -> Prediction in
@@ -134,11 +139,11 @@ final class Controller: NSObject, NSApplicationDelegate {
                 guard let path = paths.first(where: FileManager.default.isExecutableFile(atPath:)) else {
                     throw NSError(domain: "PPTCursor", code: 1, userInfo: [NSLocalizedDescriptionKey: "请安装并登录 Codex CLI"])
                 }
-                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context)
+                return try Predictor(executable: URL(fileURLWithPath: path)).predict(context, run: run)
             }
             DispatchQueue.main.async {
-                self.predicting = false
-                guard self.generation == revision, self.frontmost else { self.startPrediction(); return }
+                self.inference = nil
+                guard self.generation == revision, self.frontmost else { return }
                 switch result {
                 case .success(let suggestion):
                     guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("等待更多编辑"); return }
