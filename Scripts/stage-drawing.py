@@ -273,6 +273,29 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
             raise
 
 
+def sync_live_text(slide, shape, current_text):
+    if not isinstance(current_text, str):
+        return
+    bodies = shape.getElementsByTagNameNS(P, "txBody")
+    if len(bodies) != 1:
+        return
+    paragraphs = bodies[0].getElementsByTagNameNS(A, "p")
+    if len(paragraphs) != 1:
+        return
+    paragraph = paragraphs[0]
+    parts = [node for node in paragraph.childNodes if node.nodeType == Node.ELEMENT_NODE]
+    if any(node.namespaceURI != A or node.localName not in ("pPr", "r", "endParaRPr") for node in parts):
+        return
+    runs = paragraph.getElementsByTagNameNS(A, "r")
+    text_nodes = paragraph.getElementsByTagNameNS(A, "t")
+    if len(runs) != 1 or len(text_nodes) != 1 or any(c in current_text for c in "\r\n\v"):
+        return
+    text_node = text_nodes[0]
+    while text_node.firstChild:
+        text_node.removeChild(text_node.firstChild)
+    text_node.appendChild(slide.createTextNode(current_text))
+
+
 def copy_live_geometry(source, selector, current, baseline):
     """Carry current top-level native shape and picture transforms into the temporary baseline."""
     with ZipFile(source) as original, ZipFile(baseline, "x") as staged:
@@ -285,6 +308,7 @@ def copy_live_geometry(source, selector, current, baseline):
             shape = by_id.get(native_shape_id(tree, obj["id"]))
             if shape is None:
                 continue
+            sync_live_text(slide, shape, obj.get("text"))
             transforms = shape.getElementsByTagNameNS(A, "xfrm")
             if len(transforms) != 1:
                 continue
