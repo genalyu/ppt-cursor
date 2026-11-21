@@ -67,6 +67,9 @@ final class Controller: NSObject, NSApplicationDelegate {
             guard let self else { return }
             if self.frontmost { self.poll(); return }
             guard self.monitoring else { return }
+            // An already submitted prediction uses an immutable snapshot. Its result
+            // stays hidden until a foreground capture confirms that snapshot again.
+            if self.inference != nil, self.inFlightContext != nil, self.pending == nil { return }
             let ready = self.pending ?? self.hiddenSuggestion
             let interrupted = self.waiting ?? self.inFlightContext
             let failed = self.failedContext
@@ -454,7 +457,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             }
             DispatchQueue.main.async {
                 self.inference = nil
-                guard self.generation == revision, self.frontmost else { return }
+                guard self.generation == revision else { return }
                 self.inFlightContext = nil
                 switch result {
                 case .success(let suggestion):
