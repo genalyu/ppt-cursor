@@ -77,6 +77,12 @@ for separator in [#"\n"#, #"\r\n"#] {
     let same = try model.predict(textContext, images: [image], currentPage: Data([1]))
     precondition(same.edits.isEmpty)
 }
+for angle in [360, -720, -90] {
+    MockAPI.overrideSuggestion = #"{"summary":"Rotate","edits":[{"id":"a","placement":{"x":2,"y":0,"width":10,"height":10},"rotation":"# + String(angle) + #"}],"artwork":[]}"#
+    let rotation = try model.predict(context, images: [image], currentPage: Data([1]))
+    if angle == -90 { precondition(rotation.edits.map(\.rotation) == [270]) }
+    else { precondition(rotation.edits.isEmpty) }
+}
 MockAPI.overrideSuggestion = nil
 let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
 let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
