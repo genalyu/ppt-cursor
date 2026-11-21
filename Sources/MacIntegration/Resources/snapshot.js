@@ -123,6 +123,14 @@ function sameState(actual, expected) {
 
 function run(args) {
     if (!args.length) return snapshot();
+    if (args.length === 1 && args[0] === "settled") {
+        ObjC.import("AppKit");
+        const ready = () => Number($.NSEvent.pressedMouseButtons) === 0 &&
+            String(ObjC.unwrap($.NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier)).toLowerCase() === "com.microsoft.powerpoint";
+        if (!ready()) return JSON.stringify("deferred");
+        const result = snapshot();
+        return ready() ? result : JSON.stringify("deferred");
+    }
     if (args.length !== 2 || args[0] !== "apply") throw Error("Invalid bridge request");
     ObjC.import("Foundation");
     const source = $.NSString.stringWithContentsOfFileEncodingError(args[1], $.NSUTF8StringEncoding, null);

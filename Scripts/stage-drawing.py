@@ -382,8 +382,10 @@ def watch_preview(source, destination, session_canvas=None, references=()):
     """Wait for a settled object edit in this open document, then render one current proposal."""
     script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
     def capture():
-        data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script)], timeout=20)
+        data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20)
         state = json.loads(data)
+        if state == "deferred":
+            return state
         if state and matches_document(state["document"], source):
             return state
         return None
@@ -395,6 +397,9 @@ def watch_preview(source, destination, session_canvas=None, references=()):
         scratch = Path(directory)
         while True:
             state = capture()
+            if state == "deferred":
+                time.sleep(0.5)
+                continue
             if not state:
                 history.clear()
                 last_prediction = None
@@ -421,7 +426,10 @@ def watch_preview(source, destination, session_canvas=None, references=()):
                     print(f"本次预测失败，等待下一次编辑：{error}", file=sys.stderr, flush=True)
                     continue
                 if candidate.exists():
-                    if capture() == state:
+                    confirmed = capture()
+                    if confirmed == "deferred":
+                        last_prediction = None
+                    if confirmed == state:
                         (candidate / "baseline.json").write_text(json.dumps(state))
                         if session_canvas:
                             subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
