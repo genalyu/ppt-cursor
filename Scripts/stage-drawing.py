@@ -571,6 +571,10 @@ def watch_preview(source, destination, session_canvas=None, references=()):
                             raise
                         return
                     shutil.rmtree(candidate)
+                    if confirmed and confirmed["slideID"] == state["slideID"] and confirmed["objects"] == state["objects"]:
+                        # Selection changed during inference. Retry the pending edit with fresh context.
+                        last_prediction = None
+                        references_pending = len(history) == 1 and bool(references)
             else:
                 # Keep the selection immediately preceding the next edit.
                 history[-1] = state
