@@ -224,8 +224,14 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.makeFirstResponder(view)
     }
 
+    private var editingWithPointer: Bool {
+        NSEvent.pressedMouseButtons & 1 != 0
+    }
+
     private func poll() {
         guard monitoring, frontmost, calibration == nil, !reading, !applying else { return }
+        // A held drag may pause between mouse movements. Sample the committed slide after release.
+        guard !editingWithPointer else { return }
         if let old = calibratedWindow, let ppt = NSWorkspace.shared.frontmostApplication {
             guard let current = PowerPointWindow.front(of: ppt), old.id == current.id,
                   old.frame.size == current.frame.size else {
@@ -253,7 +259,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             let result = Result { try PowerPointBridge.capture() }
             DispatchQueue.main.async {
                 self.reading = false
-                guard self.monitoring, self.frontmost, revision == self.generation else { return }
+                guard self.monitoring, self.frontmost, !self.editingWithPointer, revision == self.generation else { return }
                 switch result {
                 case .success(let value):
                     guard let state = value else { self.invalidate(); self.history.reset(); return }
@@ -312,7 +318,10 @@ final class Controller: NSObject, NSApplicationDelegate {
                 switch result {
                 case .success(let suggestion):
                     guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("等待更多编辑"); return }
-                    self.show(context.current, suggestion)
+                    // PowerPoint may have changed during inference, between two polling ticks.
+                    // Publish only after a fresh capture confirms the baseline and the mouse is up.
+                    self.hiddenSuggestion = (context.current, suggestion)
+                    self.poll()
                 case .failure(let error): self.message(error.localizedDescription)
                 }
             }
@@ -345,7 +354,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func accept() {
-        guard frontmost, !applying, let (state, proposal) = pending else { return }
+        guard frontmost, !editingWithPointer, !applying, let (state, proposal) = pending else { return }
         let references = images
         applying = true
         invalidate()
