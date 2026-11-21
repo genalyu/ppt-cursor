@@ -21,6 +21,7 @@ public struct ObjectEdit: Codable, Sendable {
 }
 
 public struct Artwork: Codable, Sendable {
+    public var rotation: Double? = nil
     public let placement: Placement
     public let referenceID: String?
     public let svg: String
@@ -45,7 +46,7 @@ public struct Prediction: Codable, Sendable {
                   if let size = edit.fontSize, source.fontSize == nil || !(1...4000).contains(size) { return false }
                   return true
               }),
-              artwork.allSatisfy({ $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
+              artwork.allSatisfy({ ($0.rotation ?? 0).isFinite && $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
             throw PredictionError.invalidSuggestion
         }
     }

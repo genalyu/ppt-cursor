@@ -113,12 +113,19 @@
               "string",
               "null"
             ]
+          },
+          "rotation": {
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "required": [
           "placement",
           "svg",
-          "referenceID"
+          "referenceID",
+          "rotation"
         ],
         "additionalProperties": false
       }

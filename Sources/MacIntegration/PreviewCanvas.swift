@@ -131,9 +131,12 @@ public final class PreviewCanvas: NSView {
         }
         for (asset, image) in zip(suggestion.artwork, artworkImages) {
             let p = asset.placement
-            image?.draw(in: NSRect(x: p.x, y: p.y, width: p.width, height: p.height),
-                                                      from: .zero, operation: .sourceOver, fraction: 0.85,
-                                                      respectFlipped: true, hints: nil)
+            let rect = NSRect(x: p.x, y: p.y, width: p.width, height: p.height)
+            NSGraphicsContext.saveGraphicsState()
+            rotate(asset.rotation ?? 0, around: rect)
+            image?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.85,
+                        respectFlipped: true, hints: nil)
+            NSGraphicsContext.restoreGraphicsState()
         }
     }
 
