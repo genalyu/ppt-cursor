@@ -102,7 +102,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 try image.png.write(to: url)
                 return url
             }
-            let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable(), references: references, session: session)
+            let command = NativeSessionLauncher.command(script: script, document: document, codex: CodexInstallation.executable(), references: references, session: session, includePage: setup.includePage.state == .on)
             try command.write(to: launcher, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: launcher.path)
         } catch {
