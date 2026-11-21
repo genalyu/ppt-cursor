@@ -49,7 +49,13 @@ enum StagedPreview {
                 let result = Result { try PowerPointBridge.apply(proposal, to: baseline) }
                 DispatchQueue.main.async {
                     switch result {
-                    case .success: app.terminate(nil)
+                    case .success(let state):
+                        do {
+                            try JSONEncoder().encode(state).write(to: directory.appendingPathComponent("accepted.json"), options: .atomic)
+                        } catch {
+                            FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+                        }
+                        app.terminate(nil)
                     case .failure(let error):
                         feedbackPanel?.showStatus(error.localizedDescription, finished: true)
                         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))

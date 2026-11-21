@@ -314,7 +314,7 @@ def predict_preview(source, selector, history_file, output):
         print(proposal["summary"])
 
 
-def watch_preview(source, destination):
+def watch_preview(source, destination, session_canvas=None):
     """Wait for a settled object edit in this open document, then render one current proposal."""
     script = Path(__file__).resolve().parents[1] / "Sources/MacIntegration/Resources/snapshot.js"
     def capture():
@@ -325,17 +325,21 @@ def watch_preview(source, destination):
         return None
 
     history = []
+    last_prediction = None
     with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
         scratch = Path(directory)
         while True:
             state = capture()
             if not state:
                 history.clear()
+                last_prediction = None
             elif not history or history[-1]["slideID"] != state["slideID"]:
                 history = [state]
+                last_prediction = None
             elif history[-1]["objects"] != state["objects"]:
                 history = history[-7:] + [state]
-            elif len(history) > 1:
+            elif len(history) > 1 and state["objects"] != last_prediction:
+                last_prediction = state["objects"]
                 history[-1] = state
                 history_file = scratch / "history.json"
                 history_file.write_text(json.dumps(history))
@@ -344,6 +348,15 @@ def watch_preview(source, destination):
                 if candidate.exists():
                     if capture() == state:
                         (candidate / "baseline.json").write_text(json.dumps(state))
+                        if session_canvas:
+                            subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
+                            accepted = candidate / "accepted.json"
+                            if accepted.exists():
+                                final_state = json.loads(accepted.read_text())
+                                history = history[-7:] + [final_state]
+                                last_prediction = final_state["objects"]
+                            shutil.rmtree(candidate)
+                            continue
                         destination.mkdir()
                         try:
                             for item in candidate.iterdir():
@@ -353,7 +366,6 @@ def watch_preview(source, destination):
                             raise
                         return
                     shutil.rmtree(candidate)
-                history = [state]
             time.sleep(0.5)
 
 
@@ -364,7 +376,13 @@ if __name__ == "__main__":
         parser.add_argument("source", type=Path)
         parser.add_argument("output", type=Path)
         parser.add_argument("--canvas", type=Path, metavar="PPT_CURSOR_BINARY", help="Display the verified change overlay over the live slide")
+        parser.add_argument("--continuous", action="store_true", help="Keep predicting subsequent edits with temporary previews until interrupted")
         args = parser.parse_args(sys.argv[2:])
+        if args.continuous:
+            if not args.canvas:
+                parser.error("--continuous requires --canvas")
+            watch_preview(args.source, args.output, args.canvas)
+            raise SystemExit(0)
         watch_preview(args.source, args.output)
         if args.canvas:
             subprocess.run([str(args.canvas.resolve()), "--show-staged-preview", str(args.output.resolve())], check=True)
