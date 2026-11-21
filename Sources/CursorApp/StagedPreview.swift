@@ -35,15 +35,30 @@ enum StagedPreview {
         panel.contentView = view
         panel.orderFrontRegardless()
         let proposal = try? JSONDecoder().decode(Prediction.self, from: Data(contentsOf: directory.appendingPathComponent("accept.json")))
+        var submitted = false
+        weak var feedbackPanel: SuggestionPanel?
+        weak var activeShortcut: AcceptShortcut?
         let actions = StagedActions {
-            guard powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
+            guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0,
                   let proposal else { return }
+            submitted = true
+            activeShortcut?.disable()
             panel.orderOut(nil)
-            do { _ = try PowerPointBridge.apply(proposal, to: baseline) }
-            catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
-            app.terminate(nil)
+            feedbackPanel?.showStatus("正在写入 PowerPoint…", finished: false)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try PowerPointBridge.apply(proposal, to: baseline) }
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success: app.terminate(nil)
+                    case .failure(let error):
+                        feedbackPanel?.showStatus(error.localizedDescription, finished: true)
+                        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+                    }
+                }
+            }
         }
         let shortcut = AcceptShortcut { actions.accept() }
+        activeShortcut = shortcut
         var shortcutLabel: String?
         if let proposal {
             try proposal.validate(for: baseline)
@@ -54,9 +69,11 @@ enum StagedPreview {
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
                                        page: frame, canAccept: proposal != nil)
+        feedbackPanel = controls
         controls.orderFrontRegardless()
         var reading = false
         let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            guard !submitted else { return }
             guard powerpoint.isActive, (NSEvent.pressedMouseButtons == 0 || controls.frame.contains(NSEvent.mouseLocation)),
                   let current = PowerPointWindow.front(of: powerpoint),
                   current.id == window.id, current.frame == window.frame else {
@@ -69,7 +86,7 @@ enum StagedPreview {
                 let valid = (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
-                    if !valid { app.terminate(nil) }
+                    if !submitted && !valid { app.terminate(nil) }
                 }
             }
         }

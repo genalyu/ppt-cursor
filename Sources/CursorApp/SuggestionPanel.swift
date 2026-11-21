@@ -2,6 +2,18 @@ import AppKit
 
 /// A nonactivating control at the page edge leaves the entire slide preview click-through.
 final class SuggestionPanel: NSPanel {
+    private let label = NSTextField(wrappingLabelWithString: "")
+    private let confirm = NSButton()
+    private let skip = NSButton()
+
+    func showStatus(_ text: String, finished: Bool) {
+        label.stringValue = text
+        label.toolTip = text
+        confirm.isHidden = true
+        skip.isHidden = !finished
+        skip.title = "关闭"
+    }
+
     init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
          page: NSRect, canAccept: Bool = true) {
         let width = min(420, max(240, page.width - 16))
@@ -20,12 +32,16 @@ final class SuggestionPanel: NSPanel {
         surface.wantsLayer = true
         surface.layer?.cornerRadius = 10
         contentView = surface
-        let label = NSTextField(wrappingLabelWithString: summary)
+        label.stringValue = summary
         label.maximumNumberOfLines = 2
         label.lineBreakMode = .byTruncatingTail
         label.toolTip = summary
-        let confirm = NSButton(title: shortcutLabel.map { "采纳  " + $0 } ?? "采纳", target: owner, action: accept)
-        let skip = NSButton(title: "忽略", target: owner, action: dismiss)
+        confirm.title = shortcutLabel.map { "采纳  " + $0 } ?? "采纳"
+        confirm.target = owner
+        confirm.action = accept
+        skip.title = "忽略"
+        skip.target = owner
+        skip.action = dismiss
         let buttons = NSStackView(views: canAccept ? [confirm, skip] : [skip])
         for view in [label as NSView, buttons] {
             surface.addSubview(view)
