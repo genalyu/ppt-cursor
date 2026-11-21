@@ -183,18 +183,30 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func startEditing() {
         guard !locating else { return }
-        guard CGPreflightScreenCaptureAccess() else { calibrate(); return }
         guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first,
               let window = PowerPointWindow.front(of: ppt) else { calibrate(); return }
         locating = true
         message("正在读取页面尺寸。若系统询问，请允许控制 PowerPoint。")
         ppt.activate(options: [])
         DispatchQueue.global(qos: .userInitiated).async {
-            let slide = try? PowerPointBridge.capture()
+            let capture = Result { try PowerPointBridge.capture() }
             DispatchQueue.main.async {
                 self.locating = false
+                let slide: SlideSnapshot
+                switch capture {
+                case .success(let current?):
+                    slide = current
+                case .success(nil):
+                    self.message("请先在 PowerPoint 编辑窗口打开一页幻灯片，再开始预测。")
+                    self.openSetup()
+                    return
+                case .failure(let error):
+                    self.message(error.localizedDescription)
+                    self.openSetup()
+                    return
+                }
                 self.setup.orderOut(nil)
-                guard let slide, let current = PowerPointWindow.front(of: ppt),
+                guard CGPreflightScreenCaptureAccess(), let current = PowerPointWindow.front(of: ppt),
                       current.id == window.id, slide.height > 0,
                       let page = PageLocator.locate(in: current, aspect: slide.width / slide.height) else {
                     self.calibrate()
