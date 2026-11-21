@@ -218,6 +218,24 @@ def equivalent_edit(before, after, target):
                 if all(child.tag in (f"{{{A}}}r", f"{{{A}}}pPr", f"{{{A}}}endParaRPr") for child in old_p):
                     edit["text"] = new_text
                     new_runs[0].text = old_runs[0].text
+    # Whole-range font assignment can reproduce a uniform change across styled runs.
+    run_path = f"{{{A}}}r/{{{A}}}rPr"
+    old_fonts = [font for paragraph in old_paragraphs for font in paragraph.findall(run_path)]
+    new_fonts = [font for paragraph in new_paragraphs for font in paragraph.findall(run_path)]
+    regular_runs = sum(len(paragraph.findall(f"{{{A}}}r")) for paragraph in old_paragraphs)
+    simple_text = all(child.tag in {f"{{{A}}}r", f"{{{A}}}pPr", f"{{{A}}}endParaRPr"}
+                      for paragraph in old_paragraphs for child in paragraph)
+    if simple_text and regular_runs and len(old_fonts) == len(new_fonts) == regular_runs:
+        old_sizes = {font.get("sz") for font in old_fonts}
+        new_sizes = {font.get("sz") for font in new_fonts}
+        if len(old_sizes) == len(new_sizes) == 1 and old_sizes != new_sizes:
+            old_size, new_size = old_sizes.pop(), new_sizes.pop()
+            if all(value and re.fullmatch(r"[0-9]{1,6}", value) for value in (old_size, new_size)):
+                points = int(new_size) / 100
+                if 1 <= points <= 4000 and target.get("fontSize") == int(old_size) / 100:
+                    edit["fontSize"] = points
+                    for font in new_fonts:
+                        font.set("sz", old_size)
     if drawing_signature(before) != drawing_signature(after):
         return None
     return edit
