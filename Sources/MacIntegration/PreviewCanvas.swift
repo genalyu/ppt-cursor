@@ -65,7 +65,11 @@ public final class PreviewCanvas: NSView {
                 drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize)
             }
         }
-        for edit in suggestion.edits {
+        // Existing shapes retain their slide order; PowerPoint appends copies above them.
+        let editsByID = Dictionary(grouping: suggestion.edits.filter { $0.duplicate != true }, by: \.id)
+        let originals = slide.objects.compactMap { editsByID[$0.id]?.first }
+        let copies = suggestion.edits.filter { $0.duplicate == true }
+        for edit in originals + copies {
             let p = edit.placement
             let rect = NSRect(x: p.x, y: p.y, width: p.width, height: p.height)
             NSGraphicsContext.saveGraphicsState()
