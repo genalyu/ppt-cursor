@@ -89,6 +89,10 @@ final class Controller: NSObject, NSApplicationDelegate {
         let request = UUID()
         documentLookup = request
         message("正在读取 PowerPoint 当前文稿…")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            guard self.documentLookup == request else { return }
+            self.message("正在等待 PowerPoint 响应。如果 macOS 提示 PPT Cursor 请求控制 PowerPoint，请处理授权弹窗。")
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { try PowerPointBridge.currentDocumentURL() }
             DispatchQueue.main.async {
