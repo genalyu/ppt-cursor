@@ -1,0 +1,42 @@
+name: Mac preview
+on:
+  push:
+    tags: ['v*-preview.*']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+      - run: ./Scripts/test-prediction-cancellation.sh
+      - run: ./Scripts/package-mac.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-package
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-package
+          path: dist
+      - name: Publish tested archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          cd dist
+          sha256sum --check *.sha256
+          gh release create "$TAG" *.zip *.sha256 --repo "$REPOSITORY" --verify-tag --prerelease \
+            --title "PPT Cursor $TAG" \
+            --notes "macOS preview for the CPU architecture named in the ZIP. Requires PowerPoint and a signed-in Codex CLI. The app is ad-hoc signed and has not been notarized by Apple. Physical shortcut acceptance is still under validation."
