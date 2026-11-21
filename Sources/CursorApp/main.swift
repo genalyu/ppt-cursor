@@ -23,6 +23,10 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var applying = false
     private var inFlightContext: EditContext?
     private var hiddenSuggestion: (SlideSnapshot, Prediction)?
+    private let retryItem = NSMenuItem(title: "重试上次预测", action: #selector(retryPrediction), keyEquivalent: "")
+    private var failedContext: EditContext? {
+        didSet { retryItem.isHidden = failedContext == nil }
+    }
     private var waiting: EditContext?
     private var pending: (SlideSnapshot, Prediction)?
     private var generation = 0
@@ -42,6 +46,9 @@ final class Controller: NSObject, NSApplicationDelegate {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
+        retryItem.target = self
+        retryItem.isHidden = true
+        menu.addItem(retryItem)
         let tabOption = menu.addItem(withTitle: "用 Tab 采纳可见建议", action: #selector(toggleTab(_:)), keyEquivalent: "")
         tabOption.target = self
         tabOption.state = useTab ? .on : .off
@@ -59,7 +66,9 @@ final class Controller: NSObject, NSApplicationDelegate {
             guard self.monitoring else { return }
             let ready = self.pending ?? self.hiddenSuggestion
             let interrupted = self.waiting ?? self.inFlightContext
+            let failed = self.failedContext
             self.invalidate()
+            self.failedContext = failed
             self.hiddenSuggestion = ready
             self.waiting = interrupted
         }
@@ -93,6 +102,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         generation += 1
         inference?.cancel()
         pending = nil
+        failedContext = nil
         hiddenSuggestion = nil
         inFlightContext = nil
         waiting = nil
@@ -131,9 +141,20 @@ final class Controller: NSObject, NSApplicationDelegate {
         message(monitoring ? "等待 PowerPoint 编辑" : "已暂停")
     }
 
+    @objc private func retryPrediction() {
+        guard monitoring, let context = failedContext else { return }
+        failedContext = nil
+        waiting = context
+        message("正在重新核对幻灯片…")
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
+        poll()
+    }
+
     @objc private func chooseModel() {
         guard let choice = ModelSettings.choose(current: api) else { return }
+        let failed = failedContext
         invalidate()
+        failedContext = failed
         switch choice {
         case .cli: api = nil; message("已选择 Codex CLI")
         case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
@@ -342,7 +363,9 @@ final class Controller: NSObject, NSApplicationDelegate {
                     self.generation += 1 // Reject any capture already in flight when inference finished.
                     self.hiddenSuggestion = (context.current, suggestion)
                     self.poll()
-                case .failure(let error): self.message(error.localizedDescription)
+                case .failure(let error):
+                    self.failedContext = context
+                    self.message(error.localizedDescription + " · 可从菜单重试上次预测")
                 }
             }
         }
