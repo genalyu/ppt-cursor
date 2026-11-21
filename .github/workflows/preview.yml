@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift test
       - run: ./Scripts/test-prediction-cancellation.sh
+      - run: ./Scripts/test-api-prediction.sh
       - run: ./Scripts/package-mac.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -39,4 +40,4 @@ jobs:
           sha256sum --check *.sha256
           gh release create "$TAG" *.zip *.sha256 --repo "$REPOSITORY" --verify-tag --prerelease \
             --title "PPT Cursor $TAG" \
-            --notes "macOS preview for the CPU architecture named in the ZIP. Requires PowerPoint and a signed-in Codex CLI. The app is ad-hoc signed and has not been notarized by Apple. Physical shortcut acceptance is still under validation."
+            --notes "macOS preview for the CPU architecture named in the ZIP. Requires PowerPoint plus a signed-in Codex CLI or an OpenAI API key. The app is ad-hoc signed and has not been notarized by Apple. Physical shortcut acceptance is still under validation."

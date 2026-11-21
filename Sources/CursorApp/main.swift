@@ -7,12 +7,13 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "先打开 PowerPoint，定位幻灯片画布", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), chooseImages: #selector(chooseImages))
+    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel))
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?
     private var overlay: NSPanel?
     private var suggestionPanel: SuggestionPanel?
+    private var api: APISettings?
     private var images: [ReferenceImage] = []
     private var history = EditHistory()
     private var monitoring = false
@@ -37,7 +38,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         for (title, action) in [("定位幻灯片画布…", #selector(calibrate)), ("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
-                                ("清空图片素材", #selector(clearImages)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("清空图片素材", #selector(clearImages)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -107,6 +108,15 @@ final class Controller: NSObject, NSApplicationDelegate {
         history.reset()
         toggle.title = monitoring ? "暂停预测" : "开始预测"
         message(monitoring ? "等待 PowerPoint 编辑" : "已暂停")
+    }
+
+    @objc private func chooseModel() {
+        guard let choice = ModelSettings.choose(current: api) else { return }
+        invalidate()
+        switch choice {
+        case .cli: api = nil; message("已选择 Codex CLI")
+        case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
+        }
     }
 
     @objc private func clearImages() {
@@ -262,6 +272,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         if setup.includePage.state == .on, let window = calibratedWindow, let frame {
             currentPage = PageLocator.previewData(in: window, expected: frame, aspect: context.current.width / context.current.height)
         }
+        let connection = api
         let page = currentPage
         let run = PredictionRun()
         inference = run
@@ -269,6 +280,9 @@ final class Controller: NSObject, NSApplicationDelegate {
         let revision = generation
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { () throws -> Prediction in
+                if let connection {
+                    return try APIPredictor(settings: connection).predict(context, images: references, currentPage: page, run: run)
+                }
                 let paths = ["/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
                              "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]
                 guard let path = paths.first(where: FileManager.default.isExecutableFile(atPath:)) else {

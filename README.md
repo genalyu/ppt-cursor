@@ -1,16 +1,16 @@
 # PPT Cursor for Mac
 
-PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给 Codex 推断下一步，在画布上显示建议。用户按 **⌥⌘Return** 采纳。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
+PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给所选模型推断下一步，在画布上显示建议。用户按 **⌥⌘Return** 采纳。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
 
 ## 下载 Mac 测试版
 
 [下载 Apple Silicon 版 ZIP](https://raw.githubusercontent.com/genalyu/ppt-cursor/1a8a7df09b704f0f56473e1eb07695510747d538/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://raw.githubusercontent.com/genalyu/ppt-cursor/1a8a7df09b704f0f56473e1eb07695510747d538/PPT-Cursor-macOS-arm64.zip.sha256)
 
-解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint 和已登录的 Codex CLI。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
+解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
 
 ## 本地构建与运行
 
-需要 macOS 13 或更新版本、Microsoft PowerPoint 桌面版、包含 Swift 5.9 或更高版本的 Xcode Command Line Tools，以及已登录的 Codex CLI。当前版本可从 ChatGPT 桌面应用、Homebrew 的 Apple Silicon 路径或 Intel 路径发现 Codex。
+需要 macOS 13 或更新版本、Microsoft PowerPoint 桌面版、包含 Swift 5.9 或更高版本的 Xcode Command Line Tools，以及已登录的 Codex CLI 或 OpenAI API 密钥。当前版本可从 ChatGPT 桌面应用、Homebrew 的 Apple Silicon 路径或 Intel 路径发现 Codex。
 
 ```sh
 ./Scripts/build-app.sh
@@ -23,9 +23,13 @@ open "dist/PPT Cursor.app"
 4. 看到青色轮廓时，按 **⌥⌘Return**、点击页面边缘的「采纳」，或从菜单选择「采纳当前建议」。继续编辑会清除旧建议。「暂停预测」会停止读取新状态。
 5. 拖动同一个 PowerPoint 窗口时，预览跟随窗口移动。改变窗口大小、切换到另一个演示文稿窗口或调整页面缩放后，请重新定位画布。
 
+## 选择模型连接
+
+默认使用本机 Codex 登录。也可从控制窗口点击「模型连接…」，填写支持图像输入及结构化输出的 OpenAI 模型名称和 API 密钥，再选择「使用 API」。此模式通过 Responses API 预测，按该 API 账户的用量计费。密钥只在本次运行的内存中使用。退出应用后恢复默认连接。
+
 ## 数据与当前支持范围
 
-开始预测后，幻灯片中的文字、图形名称、位置、尺寸、文稿标识及同页最近几次状态会发送给本机登录的 Codex 所使用的模型服务。打开应用时默认暂停。实时状态保存在内存，推断请求使用临时目录。
+开始预测后，幻灯片中的文字、图形名称、位置、尺寸、文稿标识及同页最近几次状态会发送给所选连接的模型服务。打开应用时默认暂停。实时状态保存在内存，推断请求使用临时目录。
 
 目前可以采纳原生图形的位置、尺寸、旋转和文字变化。模型可生成独立 SVG 素材，预览后通过 PowerPoint 原生粘贴插入为可移动、缩放的图片。当前使用 TIFF 渲染插图。预览显示轮廓与文字位置；字体与主题效果以 PowerPoint 为准。应用由构建脚本在本地临时签名。
 
@@ -34,6 +38,7 @@ open "dist/PPT Cursor.app"
 ```sh
 swift build
 ./Scripts/test-history.sh
+./Scripts/test-api-prediction.sh
 swift run ppt-inspect
 swift run ppt-inspect predict before.json intermediate.json current.json > suggestion.json
 swift run ppt-preview current.json suggestion.json preview.png

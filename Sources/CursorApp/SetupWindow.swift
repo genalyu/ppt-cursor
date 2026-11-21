@@ -5,7 +5,7 @@ final class SetupWindow: NSWindow {
 
     let includePage = NSButton(checkboxWithTitle: "向模型提供当前幻灯片截图", target: nil, action: nil)
 
-    init(owner: NSObject, calibrate: Selector, chooseImages: Selector) {
+    init(owner: NSObject, calibrate: Selector, chooseImages: Selector, modelSettings: Selector) {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 470, height: 260),
                    styleMask: [.titled, .closable], backing: .buffered, defer: false)
         title = "PPT Cursor"
@@ -17,7 +17,8 @@ final class SetupWindow: NSWindow {
         let start = NSButton(title: "定位画布并开始", target: owner, action: calibrate)
         start.keyEquivalent = "\r"
         let assets = NSButton(title: "选择图片素材…", target: owner, action: chooseImages)
-        let buttons = NSStackView(views: [start, assets])
+        let settings = NSButton(title: "模型连接…", target: owner, action: modelSettings)
+        let buttons = NSStackView(views: [start, assets, settings])
         state.textColor = .secondaryLabelColor
         state.font = .systemFont(ofSize: 12)
         let stack = NSStackView(views: [heading, help, includePage, buttons, state])

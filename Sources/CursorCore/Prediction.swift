@@ -46,6 +46,21 @@ public struct Prediction: Codable, Sendable {
 
 public enum PredictionError: Error { case invalidSuggestion, missingResult }
 
+enum PredictionInput {
+    static let schema = ResourcesBundle.value.url(forResource: "prediction", withExtension: "json")!
+
+    static func instructions() throws -> String {
+        try String(contentsOf: ResourcesBundle.value.url(forResource: "predict", withExtension: "txt")!, encoding: .utf8)
+    }
+
+    static func context(_ context: EditContext, images: [ReferenceImage], hasPage: Bool) throws -> String {
+        let catalog = images.map { ["id": $0.id, "name": $0.name] }
+        let prefix = hasPage ? "The first attached image is the current slide, not an insertable reference. Remaining attachments follow catalog order.\n" : ""
+        return try prefix + String(decoding: JSONEncoder().encode(catalog), as: UTF8.self) + "\n" +
+            String(decoding: JSONEncoder().encode(context), as: UTF8.self)
+    }
+}
+
 /// Uses the installed CLI's existing sign-in. The subprocess works inside an empty temporary
 /// directory. User content travels through stdin, never through a shell or command-line argument.
 public struct Predictor: Sendable {
@@ -58,36 +73,27 @@ public struct Predictor: Sendable {
         try fm.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? fm.removeItem(at: dir) }
         let result = dir.appendingPathComponent("response.json")
-        let prompt = try String(contentsOf: ResourcesBundle.value.url(forResource: "predict", withExtension: "txt")!)
-        let schema = ResourcesBundle.value.url(forResource: "prediction", withExtension: "json")!
         let process = Process()
         process.executableURL = executable
         process.currentDirectoryURL = dir
         process.arguments = ["exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only",
-                             "--output-schema", schema.path, "--output-last-message", result.path, "-"]
+                             "--output-schema", PredictionInput.schema.path, "--output-last-message", result.path, "-"]
         var attachments: [String] = []
         if let currentPage {
             let pageURL = dir.appendingPathComponent("current-page.png")
             try currentPage.write(to: pageURL)
             attachments += ["--image", pageURL.path]
         }
-        var catalog: [[String: String]] = []
         for image in images {
             let url = dir.appendingPathComponent(image.id + ".png")
             try image.thumbnail.write(to: url)
             attachments += ["--image", url.path]
-            catalog.append(["id": image.id, "name": image.name])
         }
         process.arguments?.insert(contentsOf: attachments, at: 1)
         let input = dir.appendingPathComponent("input")
-        var request = Data((prompt + "\n").utf8)
-        if currentPage != nil {
-            request.append(Data("The first attached image shows the current slide. Use its visual contents as context; it is not an insertable reference. The catalog describes the remaining attachments.\n".utf8))
-        }
-        request.append(try JSONEncoder().encode(catalog))
-        request.append(Data("\n".utf8))
-        request.append(try JSONEncoder().encode(context))
-        try request.write(to: input)
+        let request = try PredictionInput.instructions() + "\n" +
+            PredictionInput.context(context, images: images, hasPage: currentPage != nil)
+        try Data(request.utf8).write(to: input)
         let handle = try FileHandle(forReadingFrom: input)
         defer { try? handle.close() }
         process.standardInput = handle
