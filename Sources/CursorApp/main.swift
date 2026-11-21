@@ -7,7 +7,9 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "先打开 PowerPoint，定位幻灯片画布", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
+    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(calibrate), chooseImages: #selector(chooseImages))
     private var frame: NSRect?
+    private var calibratedWindow: PowerPointWindow?
     private var calibration: NSPanel?
     private var overlay: NSPanel?
     private var images: [ReferenceImage] = []
@@ -37,7 +39,10 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
         toggle.target = self
         menu.insertItem(toggle, at: 3)
+        let settings = menu.insertItem(withTitle: "打开控制窗口…", action: #selector(openSetup), keyEquivalent: "", at: 1)
+        settings.target = self
         item.menu = menu
+        openSetup()
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.poll() }
         observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                      object: nil, queue: .main) { [weak self] _ in
@@ -47,12 +52,23 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func openSetup() {
+        setup.update(status.title)
+        NSApp.activate(ignoringOtherApps: true)
+        setup.makeKeyAndOrderFront(nil)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSetup()
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) { inference?.cancel() }
 
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
     }
-    private func message(_ value: String) { status.title = value; item.button?.toolTip = value }
+    private func message(_ value: String) { status.title = value; item.button?.toolTip = value; setup.update(value) }
     private func invalidate() {
         generation += 1
         inference?.cancel()
@@ -95,18 +111,29 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func calibrate() {
         guard calibration == nil else { return }
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) else { return }
+        guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
+            message("请先打开 PowerPoint 和要编辑的幻灯片")
+            return
+        }
+        setup.orderOut(nil)
+        ppt.activate(options: [])
+        guard let window = PowerPointWindow.front(of: ppt) else {
+            openSetup()
+            message("请先显示 PowerPoint 的编辑窗口")
+            return
+        }
         invalidate()
-        let panel = CalibrationPanel(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        let panel = CalibrationPanel(contentRect: window.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.level = .screenSaver
-        let view = CalibrationView(frame: NSRect(origin: .zero, size: screen.frame.size)) { [weak self] rect in
+        let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size)) { [weak self] rect in
             guard let self else { return }
             self.calibration?.orderOut(nil)
             self.calibration = nil
             guard let rect else { return }
             self.frame = rect
+            self.calibratedWindow = window
             self.monitoring = true
             self.history.reset()
             self.toggle.title = "暂停预测"
@@ -122,6 +149,24 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     private func poll() {
         guard monitoring, frontmost, calibration == nil, !reading, !applying else { return }
+        if let old = calibratedWindow, let ppt = NSWorkspace.shared.frontmostApplication {
+            guard let current = PowerPointWindow.front(of: ppt), old.id == current.id,
+                  old.frame.size == current.frame.size else {
+                invalidate()
+                frame = nil
+                calibratedWindow = nil
+                monitoring = false
+                toggle.title = "开始预测"
+                history.reset()
+                message("PowerPoint 窗口已改变，请重新定位画布")
+                return
+            }
+            if old.frame.origin != current.frame.origin {
+                frame = frame?.offsetBy(dx: current.frame.minX - old.frame.minX, dy: current.frame.minY - old.frame.minY)
+                calibratedWindow = current
+                if let frame { overlay?.setFrame(frame, display: true) }
+            }
+        }
         reading = true
         let revision = generation
         DispatchQueue.global(qos: .userInitiated).async {
