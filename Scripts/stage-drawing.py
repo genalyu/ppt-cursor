@@ -662,21 +662,29 @@ def api_proposal(settings, instructions, context, images, schema):
             raise ValueError("模型服务达到速率或额度限制")
         if response.status != 200:
             raise ValueError(f"模型服务返回 HTTP {response.status}")
-        result = json.loads(response.read())
+        try:
+            result = json.loads(response.read())
+        except (ValueError, UnicodeError):
+            raise ValueError("模型服务返回了无效的 JSON") from None
     except (OSError, http.client.HTTPException):
         raise ValueError("无法连接模型服务，请检查网络连接") from None
     finally:
         conn.close()
-    if isinstance(result, dict) and result.get("status") == "completed":
-        for item in result.get("output", []):
-            for part in item.get("content", []):
-                if part.get("type") == "output_text":
-                    return json.loads(part["text"])
+    if isinstance(result, dict) and result.get("status") == "completed" and isinstance(result.get("output"), list):
+        for item in result["output"]:
+            if not isinstance(item, dict) or not isinstance(item.get("content"), list):
+                continue
+            for part in item["content"]:
+                if isinstance(part, dict) and part.get("type") == "output_text" and isinstance(part.get("text"), str):
+                    try:
+                        return json.loads(part["text"])
+                    except ValueError:
+                        raise ValueError("模型建议格式无效") from None
     raise ValueError("模型没有返回完整建议")
 
 
 def predict_preview(source, selector, history_file, output, references=(), dismissed=(), include_page=False, api=None):
-    """Ask the configured CLI for one native edit, then stage and render its result."""
+    """Ask the selected model for one edit, then stage and render its result."""
     history = json.loads(history_file.read_text())
     if not isinstance(history, list) or not history or (len(history) == 1 and not references):
         raise ValueError("Expected edit history or one current snapshot with reference images")
