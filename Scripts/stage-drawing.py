@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Place a model-authored DrawingML shape into a disposable PPTX for preview."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -115,6 +116,9 @@ def stage(source, part, fragment, output, replace_id=None):
                 data = slide.toxml(encoding="utf-8") if member.filename == part else original.read(member)
                 staged.writestr(member, data)
         os.link(candidate, output)
+        identity, = replacement.getElementsByTagNameNS(P, "cNvPr")
+        return {"operation": "insert" if replace_id is None else "replace",
+                "shapeID": int(identity.getAttribute("id")), "name": identity.getAttribute("name")}
 
 
 def write_overlay(before_file, after_file, output):
@@ -147,7 +151,14 @@ def render_pair(source, slide_id, fragment, destination, replace_id):
         result = scratch / "result"
         result.mkdir()
         candidate = result / "after.pptx"
-        stage(baseline, slide_id, fragment, candidate, replace_id)
+        target = stage(baseline, slide_id, fragment, candidate, replace_id)
+        target.update(slideID=int(slide_id), page=pages[0])
+        digest = hashlib.sha256()
+        with candidate.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        target["candidateSHA256"] = digest.hexdigest()
+        (result / "target.json").write_text(json.dumps(target, ensure_ascii=False))
         settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"}}
         subprocess.run([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
                         "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
