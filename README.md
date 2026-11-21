@@ -51,7 +51,15 @@ open "dist/PPT Cursor.app"
 
 锁定宽高比的图片已验证可按预览分别写入宽度和高度。测试从 192 × 96 调整到 180 × 80，再恢复到 192 × 96，两次都读回目标尺寸并保留原来的锁定状态。
 
-## 从源码试用原生图形预测
+## 试用原生图形预测
+
+Preview 19 已附带开放式预测脚本。将应用放入「应用程序」，在 PowerPoint 打开目标文稿，然后运行以下命令，将最后一个路径换成该文稿的实际路径。这个入口需要 Codex CLI、LibreOffice、Poppler 的 `pdftoppm` 和安装了 Pillow 的 Python 3。
+
+```sh
+python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"
+```
+
+### 从源码启动
 
 在 PowerPoint 中打开本地 PPTX，从仓库运行下列命令。需要 Swift、已登录的 Codex CLI、LibreOffice、Poppler 的 `pdftoppm`，以及安装了 Pillow 的 Python 3。
 
