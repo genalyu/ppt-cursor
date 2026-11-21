@@ -117,7 +117,7 @@ public final class PreviewCanvas: NSView {
                 }
                 if let rgb = edit.solidFillRGB, rgb.count == 3 {
                     NSColor(srgbRed: CGFloat(rgb[0]) / 255, green: CGFloat(rgb[1]) / 255,
-                            blue: CGFloat(rgb[2]) / 255, alpha: 1).setFill()
+                            blue: CGFloat(rgb[2]) / 255, alpha: 1 - (original?.fillTransparency ?? 0)).setFill()
                 } else {
                     NSColor.systemTeal.withAlphaComponent(0.19).setFill()
                 }

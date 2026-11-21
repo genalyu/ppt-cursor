@@ -37,10 +37,12 @@ function snapshot() {
             }
         }
         const kind = String(shape.shapeType());
-        let solidFillRGB;
+        let solidFillRGB, fillTransparency;
         if (kind === "shape type auto" || kind === "shape type text box") {
             const fill = shape.fillFormat;
             if (fill.visible() && fill.fillFormatType() === "fill solid") {
+                const transparency = fill.transparency();
+                if (Number.isFinite(transparency) && transparency >= 0 && transparency <= 1) fillTransparency = transparency;
                 const rgb = fill.foreColor();
                 if (Array.isArray(rgb) && rgb.length === 3 &&
                     rgb.every(value => Number.isInteger(value) && value >= 0 && value <= 255)) solidFillRGB = rgb;
@@ -70,7 +72,7 @@ function snapshot() {
             table = {rows, columns, visibleSample};
         }
         return {
-            table, fontSize, solidFillRGB,
+            table, fontSize, solidFillRGB, fillTransparency,
             autoShapeType: kind === "shape type auto" ? String(shape.autoShapeType()) : undefined,
             id: JSON.stringify([name, occurrence]),
             kind,
