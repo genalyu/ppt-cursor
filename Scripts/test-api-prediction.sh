@@ -10,6 +10,7 @@ import Foundation
 import CursorCore
 
 final class MockAPI: URLProtocol {
+    static var unchanged = false
     static var malformed = false
     static var code = 200
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -39,7 +40,8 @@ final class MockAPI: URLProtocol {
         precondition(content[1]["image_url"] == "data:image/png;base64,AQ==")
         precondition(content[2]["image_url"] == "data:image/png;base64,Ag==")
         let suggestion = #"{"summary":"Align","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0,"text":null}],"artwork":[]}"#
-        let payload: [String: Any] = ["status": "completed", "output": [["type": "message", "content": [["type":"output_text","text":Self.malformed ? "broken" : suggestion]]]]]
+        let output = Self.unchanged ? suggestion.replacingOccurrences(of: #""x":5,"y":5"#, with: #""x":2,"y":0"#) : suggestion
+        let payload: [String: Any] = ["status": "completed", "output": [["type": "message", "content": [["type":"output_text","text":Self.malformed ? "broken" : output]]]]]
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: Self.code, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: payload))
         client?.urlProtocolDidFinishLoading(self)
@@ -61,6 +63,10 @@ let model = APIPredictor(settings: APISettings(model: "test-model", key: "test-o
 let image = ReferenceImage(name: "card", png: Data([3]), thumbnail: Data([2]))
 let result = try model.predict(context, images: [image], currentPage: Data([1]))
 precondition(result.edits.first?.id == "a")
+MockAPI.unchanged = true
+let unchanged = try model.predict(context, images: [image], currentPage: Data([1]))
+precondition(unchanged.edits.isEmpty && unchanged.artwork.isEmpty)
+MockAPI.unchanged = false
 let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
 let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
 do { try combination.validate(for: context.current); fatalError("Accepted text on a non-text object") }

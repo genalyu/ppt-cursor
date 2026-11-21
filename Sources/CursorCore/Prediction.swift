@@ -82,7 +82,16 @@ extension Prediction {
                                 width: width, height: height)
             return Artwork(placement: fit, referenceID: id, svg: art.svg)
         }
-        let fitted = Prediction(summary: suggestion.summary, edits: suggestion.edits, artwork: artwork)
+        let sources = Dictionary(slide.objects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let edits = suggestion.edits.filter { edit in
+            guard edit.duplicate != true, let source = sources[edit.id] else { return true }
+            let box = edit.placement
+            return box.x != source.x || box.y != source.y || box.width != source.width ||
+                box.height != source.height || edit.rotation != source.rotation ||
+                (edit.text != nil && edit.text != source.text) ||
+                (edit.fontSize != nil && edit.fontSize != source.fontSize)
+        }
+        let fitted = Prediction(summary: suggestion.summary, edits: edits, artwork: artwork)
         try fitted.validate(for: slide, images: images)
         return fitted
     }
