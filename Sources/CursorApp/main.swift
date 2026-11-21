@@ -19,7 +19,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var history = EditHistory()
     private var monitoring = false
     private var reading = false
-    private var locating = false
+    private var locationRequest: UUID?
     private var inference: PredictionRun?
     private var applying = false
     private var inFlightContext: EditContext?
@@ -139,6 +139,15 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
+        if locationRequest != nil {
+            locationRequest = nil
+            monitoring = false
+            invalidate()
+            history.reset()
+            toggle.title = "开始预测"
+            message("已暂停")
+            return
+        }
         if !monitoring && frame == nil { startEditing(); return }
         monitoring.toggle()
         invalidate()
@@ -210,7 +219,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func startEditing() {
-        guard !locating else { return }
+        guard locationRequest == nil, calibration == nil else { return }
         guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
             message("请打开 PowerPoint 和要编辑的演示文稿，然后点击「定位画布并开始」。")
             openSetup()
@@ -221,13 +230,17 @@ final class Controller: NSObject, NSApplicationDelegate {
             openSetup()
             return
         }
-        locating = true
+        let request = UUID()
+        locationRequest = request
+        toggle.title = "暂停预测"
         message("正在读取页面尺寸。若系统询问，请允许控制 PowerPoint。")
         ppt.activate(options: [])
         DispatchQueue.global(qos: .userInitiated).async {
             let capture = Result { try PowerPointBridge.capture() }
             DispatchQueue.main.async {
-                self.locating = false
+                guard self.locationRequest == request else { return }
+                self.locationRequest = nil
+                self.toggle.title = self.monitoring ? "暂停预测" : "开始预测"
                 let slide: SlideSnapshot
                 switch capture {
                 case .success(let current?):
@@ -263,6 +276,8 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func calibrate() {
         guard calibration == nil else { return }
+        locationRequest = nil
+        toggle.title = monitoring ? "暂停预测" : "开始预测"
         guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
             message("请先打开 PowerPoint 和要编辑的幻灯片")
             return
