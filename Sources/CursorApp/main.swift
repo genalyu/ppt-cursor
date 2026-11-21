@@ -269,7 +269,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 guard CGPreflightScreenCaptureAccess(), let current = PowerPointWindow.front(of: ppt),
                       current.id == window.id, slide.height > 0,
                       let page = PageLocator.locate(in: current, aspect: slide.width / slide.height) else {
-                    self.calibrate()
+                    self.presentCalibration(aspect: slide.width / slide.height)
                     return
                 }
                 self.invalidate()
@@ -286,6 +286,11 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func calibrate() {
+        let aspect = history.current.map { $0.width / $0.height }
+        presentCalibration(aspect: aspect)
+    }
+
+    private func presentCalibration(aspect: Double?) {
         guard calibration == nil else { return }
         locationRequest = nil
         toggle.title = monitoring ? "暂停预测" : "开始预测"
@@ -305,7 +310,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.level = .screenSaver
-        let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size)) { [weak self] rect in
+        let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size), aspect: aspect) { [weak self] rect in
             guard let self else { return }
             self.calibration?.orderOut(nil)
             self.calibration = nil

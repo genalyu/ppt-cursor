@@ -2,10 +2,12 @@ import AppKit
 
 final class CalibrationView: NSView {
     let finish: (NSRect?) -> Void
+    private let aspect: Double?
     private var start: NSPoint?
     private var end: NSPoint?
 
-    init(frame: NSRect, finish: @escaping (NSRect?) -> Void) {
+    init(frame: NSRect, aspect: Double?, finish: @escaping (NSRect?) -> Void) {
+        self.aspect = aspect
         self.finish = finish
         super.init(frame: frame)
     }
@@ -16,10 +18,15 @@ final class CalibrationView: NSView {
     }
     private var selection: NSRect? {
         guard let start, let end else { return nil }
-        return NSRect(x: min(start.x,end.x), y: min(start.y,end.y),
-                      width: abs(end.x-start.x), height: abs(end.y-start.y))
+        let box = NSRect(x: min(start.x,end.x), y: min(start.y,end.y),
+                      width: abs(end.x-start.x), height: abs(end.y-start.y)).intersection(bounds)
+        guard !box.isNull else { return nil }
+        guard let aspect, aspect.isFinite, aspect > 0 else { return box }
+        let width = min(box.width, box.height * aspect)
+        let height = width / aspect
+        return NSRect(x: box.midX - width / 2, y: box.midY - height / 2, width: width, height: height)
     }
-    override func mouseDown(with event: NSEvent) { start = event.locationInWindow }
+    override func mouseDown(with event: NSEvent) { start = event.locationInWindow; end = start; needsDisplay = true }
     override func mouseDragged(with event: NSEvent) { end = event.locationInWindow; needsDisplay = true }
     override func mouseUp(with event: NSEvent) {
         end = event.locationInWindow
