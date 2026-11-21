@@ -7,6 +7,7 @@ public struct SlideObject: Codable, Equatable, Sendable {
     public let name: String
     public let text: String?
     public let x, y, width, height, rotation: Double
+    public var fontSize: Double? = nil
 }
 
 public struct SlideSnapshot: Codable, Equatable, Sendable {

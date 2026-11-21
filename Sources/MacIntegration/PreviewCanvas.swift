@@ -62,7 +62,7 @@ public final class PreviewCanvas: NSView {
                 let rect = NSRect(x: object.x, y: object.y, width: object.width, height: object.height)
                 NSColor(white: 0.94, alpha: 1).setFill()
                 rect.fill()
-                drawLabel(object.text ?? object.name, in: rect)
+                drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize)
             }
         }
         for edit in suggestion.edits {
@@ -80,7 +80,7 @@ public final class PreviewCanvas: NSView {
                 NSColor.systemTeal.withAlphaComponent(0.19).setFill()
                 rect.fill()
                 let original = slide.objects.first { $0.id == edit.id }
-                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect)
+                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: original?.fontSize)
             }
             let outline = NSBezierPath(rect: rect)
             outline.lineWidth = 2 / scale
@@ -98,9 +98,14 @@ public final class PreviewCanvas: NSView {
         }
     }
 
-    private func drawLabel(_ text: String, in rect: NSRect) {
-        let font = NSFont.systemFont(ofSize: min(18, max(8, rect.height * 0.3)), weight: .medium)
-        (text as NSString).draw(in: rect.insetBy(dx: 6, dy: 4), withAttributes: [.font: font, .foregroundColor: NSColor.black])
+    private func drawLabel(_ text: String, in rect: NSRect, fontSize: Double?) {
+        let content = rect.insetBy(dx: 6, dy: 4)
+        guard content.width > 0, content.height > 0 else { return }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: content).addClip()
+        let font = NSFont.systemFont(ofSize: fontSize ?? min(18, max(8, rect.height * 0.3)), weight: .medium)
+        (text as NSString).draw(in: content, withAttributes: [.font: font, .foregroundColor: NSColor.black])
     }
 }
 

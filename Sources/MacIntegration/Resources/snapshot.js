@@ -18,7 +18,13 @@ function snapshot() {
         nameCounts.set(name, occurrence);
         let text = null;
         if (shape.hasTextFrame()) text = String(shape.textFrame.textRange.content());
+        let fontSize;
+        if (text) {
+            const size = shape.textFrame.textRange.font.fontSize();
+            if (Number.isFinite(size) && size > 0) fontSize = size;
+        }
         return {
+            fontSize,
             id: JSON.stringify([name, occurrence]),
             kind: String(shape.shapeType()),
             name,
