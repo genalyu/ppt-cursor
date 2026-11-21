@@ -90,13 +90,15 @@ extension Prediction {
             return ObjectEdit(id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
                               placement: edit.placement, rotation: angle < 0 ? angle + 360 : angle, text: nativeText)
         }
+        // Match the write tolerance in the PowerPoint automation bridge.
+        func differs(_ proposed: Double, _ existing: Double) -> Bool { abs(proposed - existing) > 0.02 }
         let edits = normalized.filter { edit in
             guard edit.duplicate != true, let source = sources[edit.id] else { return true }
             let box = edit.placement
-            return box.x != source.x || box.y != source.y || box.width != source.width ||
-                box.height != source.height || edit.rotation != source.rotation ||
+            return differs(box.x, source.x) || differs(box.y, source.y) || differs(box.width, source.width) ||
+                differs(box.height, source.height) || differs(edit.rotation, source.rotation) ||
                 (edit.text != nil && edit.text != source.text) ||
-                (edit.fontSize != nil && edit.fontSize != source.fontSize)
+                (edit.fontSize.map { differs($0, source.fontSize ?? 0) } ?? false)
         }
         let fitted = Prediction(summary: suggestion.summary, edits: edits, artwork: artwork)
         try fitted.validate(for: slide, images: images)

@@ -83,6 +83,11 @@ for angle in [360, -720, -90] {
     if angle == -90 { precondition(rotation.edits.map(\.rotation) == [270]) }
     else { precondition(rotation.edits.isEmpty) }
 }
+for x in [2.01, 2.03] {
+    MockAPI.overrideSuggestion = #"{"summary":"Move","edits":[{"id":"a","placement":{"x":"# + String(x) + #","y":0,"width":10,"height":10},"rotation":0}],"artwork":[]}"#
+    let move = try model.predict(context, images: [image], currentPage: Data([1]))
+    precondition(move.edits.count == (x == 2.01 ? 0 : 1))
+}
 MockAPI.overrideSuggestion = nil
 let invalidCombination = #"{"summary":"Move and label","edits":[{"id":"a","placement":{"x":5,"y":5,"width":10,"height":10},"rotation":0},{"id":"a","duplicate":true,"placement":{"x":20,"y":5,"width":10,"height":10},"rotation":0,"text":"Label"}],"artwork":[]}"#
 let combination = try JSONDecoder().decode(Prediction.self, from: Data(invalidCombination.utf8))
