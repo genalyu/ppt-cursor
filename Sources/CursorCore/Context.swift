@@ -16,11 +16,16 @@ public struct SlideObject: Codable, Equatable, Sendable {
     public var fontSize: Double? = nil
 }
 
+public struct TextSelection: Codable, Equatable, Sendable {
+    public let offset, length: Int
+}
+
 public struct SlideSnapshot: Codable, Equatable, Sendable {
     public let document: String
     public let slideID: Int
     public let width, height: Double
     public let objects: [SlideObject]
+    public var textSelection: TextSelection? = nil
     public var editingText: Bool? = nil
     public var viewZoom: Int? = nil
     public var selectedIDs: [String]? = nil
@@ -55,7 +60,7 @@ public struct EditContext: Encodable, Sendable {
 
     private enum CodingKeys: String, CodingKey { case current, transitions, recentlyDismissed }
 
-    private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs }
+    private enum PageKeys: String, CodingKey { case width, height, objects, selectedIDs, textSelection }
 
     public func encode(to encoder: Encoder) throws {
         var output = encoder.container(keyedBy: CodingKeys.self)
@@ -64,6 +69,7 @@ public struct EditContext: Encodable, Sendable {
         try page.encode(current.height, forKey: .height)
         try page.encode(current.objects, forKey: .objects)
         try page.encodeIfPresent(current.selectedIDs, forKey: .selectedIDs)
+        try page.encodeIfPresent(current.textSelection, forKey: .textSelection)
         if !recentlyDismissed.isEmpty { try output.encode(recentlyDismissed, forKey: .recentlyDismissed) }
         let states = previous + [current]
         let transitions = zip(states, states.dropFirst()).map { Transition(from: $0, to: $1) }
