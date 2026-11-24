@@ -7,8 +7,10 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, calibrate: #selector(startEditing), openNativeSession: #selector(openNativeSession), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab)
+    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab)
     private var documentLookup: UUID?
+    private var awaitingDocument = false
+    private var nativeDocument: URL?
     private var nativeProcess: Process?
     private var nativeDirectory: URL?
     private var frame: NSRect?
@@ -47,7 +49,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         for (title, action) in [("定位幻灯片画布…", #selector(startEditing)), ("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
-                                ("清空图片素材", #selector(clearImages)), ("启动开放式预测…", #selector(openNativeSession)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("停止开放式预测", #selector(stopNativeSession)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("清空图片素材", #selector(clearImages)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("停止开放式预测", #selector(stopNativeSession)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -62,7 +64,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let settings = menu.insertItem(withTitle: "打开控制窗口…", action: #selector(openSetup), keyEquivalent: "", at: 1)
         settings.target = self
         item.menu = menu
-        if CommandLine.arguments.contains("--start-editing") { startEditing() } else { openSetup() }
+        if CommandLine.arguments.contains("--start-editing") { startEditing() } else { awaitCurrentDocument() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.poll() }
         observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                      object: nil, queue: .main) { [weak self] _ in
@@ -80,6 +82,28 @@ final class Controller: NSObject, NSApplicationDelegate {
             self.hiddenSuggestion = ready
             self.waiting = interrupted
         }
+    }
+
+    private func awaitCurrentDocument() {
+        guard !awaitingDocument else { return }
+        awaitingDocument = true
+        checkForDocument()
+    }
+
+    private func checkForDocument() {
+        guard awaitingDocument, documentLookup == nil, nativeProcess == nil else { return }
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").isEmpty {
+            openNativeSession()
+        } else {
+            message("等待 PowerPoint 打开本地 PPTX…")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.checkForDocument() }
+        }
+    }
+
+    @objc private func refreshNativeSettings() {
+        guard let document = nativeDocument, nativeProcess != nil else { return }
+        stopNativeSession()
+        startNativeSession(document)
     }
 
     @objc private func openNativeSession() {
@@ -101,8 +125,10 @@ final class Controller: NSObject, NSApplicationDelegate {
                 case .success(let document?):
                     self.startNativeSession(document)
                 case .success(nil):
-                    self.chooseNativeDocument()
+                    self.message("等待打开或保存本地 PPTX…")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.checkForDocument() }
                 case .failure(let error):
+                    self.awaitingDocument = false
                     self.message(error.localizedDescription)
                 }
             }
@@ -120,15 +146,13 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func startNativeSession(_ document: URL) {
+        awaitingDocument = false
         guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py") else {
             message("请从打包的 PPT Cursor 应用启动开放式会话")
             return
         }
-        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
-            openSetup()
-            message("自动定位需要屏幕录制权限。请在系统设置中允许 PPT Cursor，然后重新打开应用。")
-            return
-        }
+        // Prediction reads the PowerPoint document. Only the canvas overlay needs screen access.
+        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
         let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
         do {
             try FileManager.default.createDirectory(at: session, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -156,6 +180,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             process.standardError = output
             try process.run()
             if monitoring || locationRequest != nil { toggleMonitoring() }
+            nativeDocument = document
             nativeProcess = process
             nativeDirectory = session
             DispatchQueue.global(qos: .utility).async {
@@ -205,6 +230,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func stopNativeSession() {
+        awaitingDocument = false
+        nativeDocument = nil
         documentLookup = nil
         guard let process = nativeProcess else { return }
         NativeSessionLauncher.stop(process)
@@ -221,7 +248,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        openSetup()
+        if nativeProcess == nil && !monitoring { awaitCurrentDocument() } else { openSetup() }
         return true
     }
 
@@ -317,6 +344,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         case .cli: api = nil; message("已选择 Codex CLI")
         case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
         }
+        refreshNativeSettings()
         if monitoring, interrupted != nil {
             message("模型连接已更新，正在重新核对幻灯片…")
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
@@ -331,6 +359,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         images.removeAll()
         predictWithImportedImages = false
         message("已清空素材")
+        refreshNativeSettings()
     }
 
     @objc private func chooseImages() {
@@ -362,6 +391,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 images = imported
                 predictWithImportedImages = true
                 message("已载入 " + String(imported.count) + " 张素材")
+                refreshNativeSettings()
             case .failure(let error): message(error.localizedDescription)
             }
             poll()
@@ -369,6 +399,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func startEditing() {
+        awaitingDocument = false
         documentLookup = nil
         if nativeProcess != nil { stopNativeSession() }
         guard locationRequest == nil else { return }
