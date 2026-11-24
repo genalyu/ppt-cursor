@@ -935,6 +935,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             return state
         return None
 
+    queued_acceptance = None
     accepted_pages = {}
     recent_pages = {}
     history = []
@@ -945,7 +946,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
         scratch = Path(directory)
         while True:
-            state = capture()
+            # Writeback already confirmed this snapshot. Start the follow-up even if
+            # PowerPoint loses focus; only display it after a fresh foreground check.
+            following_acceptance = queued_acceptance is not None
+            state = queued_acceptance if following_acceptance else capture()
+            queued_acceptance = None
             if state == "deferred":
                 time.sleep(0.5)
                 continue
@@ -1007,6 +1012,10 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     baseline = saved[0]
                 def check_current():
                     observed = capture()
+                    if following_acceptance and observed == "deferred":
+                        if file_revision(source) != source_revision:
+                            raise StalePrediction()
+                        return
                     while observed == "deferred":
                         time.sleep(0.5)
                         observed = capture()
@@ -1049,7 +1058,9 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                                 final_state = json.loads(accepted.read_text())
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 history = history[-7:] + [dict(final_state, acceptedSuggestion=summary)]
+                                queued_acceptance = final_state
                                 last_prediction = None
+                                print("已采纳，正在准备下一条建议…", flush=True)
                                 staged = candidate / "after.pptx"
                                 if staged.is_file() and file_revision(source) == source_revision:
                                     copy = scratch / f"accepted-{state['slideID']}.pptx"

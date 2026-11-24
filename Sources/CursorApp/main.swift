@@ -264,7 +264,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     private func message(_ value: String) {
         status.title = value
         let caption: String
-        if value.hasPrefix("正在根据当前页") { caption = "预测中…" }
+        if value.hasPrefix("已采纳，正在准备") { caption = "下一条建议…" }
+        else if value.hasPrefix("正在根据当前页") { caption = "预测中…" }
         else if value.hasPrefix("正在生成画布") { caption = "生成预览…" }
         else if value.hasPrefix("已显示建议") { caption = "有建议" }
         else if value.hasPrefix("等待返回") { caption = "等待编辑" }

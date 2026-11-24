@@ -155,3 +155,33 @@ with tempfile.TemporaryDirectory() as tmp, patch.object(staging.subprocess, "che
         pass
     review.assert_called_once()
 print("Verified one review of a stationary page without repeated idle requests")
+
+# A second suggestion starts from the confirmed writeback even with no new foreground sample.
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp)
+    source = folder / "follow.pptx"
+    source.touch()
+    def page(x):
+        return dict(document=str(source), slideID=1, objects=[dict(id="shape", x=x)])
+    states = iter(map(json.dumps, [page(0), page(0), page(0), "deferred", "deferred"]))
+    requests = []
+    def propose(baseline, selector, history_file, candidate, refs, dismissed, image, api, check):
+        requests.append(json.loads(history_file.read_text())[-1])
+        if len(requests) == 1:
+            candidate.mkdir()
+            (candidate / "summary.txt").write_text("Move shape")
+        else:
+            check()
+            check()
+    def apply(command):
+        (Path(command[-1]) / "accepted.json").write_text(json.dumps(page(10)))
+    with patch.object(staging.subprocess, "check_output", side_effect=states), \
+         patch.object(staging.subprocess, "run", side_effect=apply), \
+         patch.object(staging, "predict_preview", side_effect=propose), patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, folder / "preview", folder / "canvas")
+        except StopIteration:
+            pass
+    assert len(requests) == 2 and requests[1]["acceptedSuggestion"] == "Move shape"
+    assert requests[1]["objects"] == page(10)["objects"]
+print("Verified immediate follow-up from confirmed acceptance while PowerPoint is in the background")
