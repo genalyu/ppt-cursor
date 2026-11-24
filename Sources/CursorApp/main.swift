@@ -226,7 +226,6 @@ final class Controller: NSObject, NSApplicationDelegate {
                 }
             }
             setup.orderOut(nil)
-            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
             message("正在为“" + document.lastPathComponent + "”启动开放式预测…")
         } catch {
             try? FileManager.default.removeItem(at: session)
