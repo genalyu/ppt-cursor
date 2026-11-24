@@ -849,7 +849,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
                 print(proposal["summary"])
             return
         if not proposal["drawing"].strip():
-            print("等待更多编辑以判断下一步。")
+            print("当前页已分析，暂无新建议。")
             return
         if proposal["replaceID"] is not None and not any(shape["replaceID"] == proposal["replaceID"] for shape in shapes):
             raise ValueError("模型指定的替换对象不在当前页的可编辑图形中。")
@@ -860,7 +860,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
         acceptance = native_acceptance(tree, proposal["replaceID"], proposal["drawing"], states[-1], proposal["summary"])
         if not render_pair(baseline, selector, fragment, output, proposal["replaceID"],
                            require_visible=True, baseline_image=page_image, outline=geometry_outline(acceptance, states[-1])):
-            print("建议没有可见变化，等待下一次编辑。")
+            print("本次建议没有可见变化，继续读取当前页。")
             return
         (output / "summary.txt").write_text(proposal["summary"])
         if acceptance:
@@ -917,7 +917,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                 detail = (error.stderr or b"").decode("utf-8", errors="replace").strip()
                 raise RuntimeError(detail or "无法读取 PowerPoint 状态") from error
             if not timed_out:
-                print("等待 PowerPoint 响应。若有打开的对话框，请处理后继续编辑。", file=sys.stderr, flush=True)
+                print("正在读取 PowerPoint。若有打开的对话框，请处理后继续编辑。", file=sys.stderr, flush=True)
             timed_out = True
             return "deferred"
         timed_out = False
@@ -926,7 +926,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             if deferred_since is None:
                 deferred_since = time.monotonic()
             elif not reported_wait and time.monotonic() - deferred_since >= 2:
-                print("等待返回 PowerPoint 编辑窗口并松开鼠标。", flush=True)
+                print("切回 PowerPoint 并松开鼠标后即可核对当前页。", flush=True)
                 reported_wait = True
             return state
         deferred_since = None
@@ -1042,7 +1042,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         raise
                     if candidate.exists():
                         shutil.rmtree(candidate)
-                    print(f"本次预测失败，等待下一次编辑：{error}", file=sys.stderr, flush=True)
+                    print(f"本次预测失败：{error}", file=sys.stderr, flush=True)
                     continue
                 if candidate.exists():
                     confirmed = capture()
@@ -1053,6 +1053,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         (candidate / "baseline.json").write_text(json.dumps(state))
                         if session_canvas:
                             subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
+                            print("PPT_CURSOR_PHASE=读取", flush=True)
                             accepted = candidate / "accepted.json"
                             if accepted.exists():
                                 final_state = json.loads(accepted.read_text())
@@ -1134,7 +1135,7 @@ if __name__ == "__main__":
             subprocess.run(["swift", "build", "--product", "PPTCursor"], cwd=root, check=True)
             binary_dir = subprocess.check_output(["swift", "build", "--show-bin-path"], cwd=root, text=True).strip()
             canvas = Path(binary_dir) / "PPTCursor"
-        print("正在等待 PowerPoint 中的编辑。", flush=True)
+        print("正在读取 PowerPoint 当前页。", flush=True)
         try:
             with tempfile.TemporaryDirectory() as folder:
                 watch_preview(source, Path(folder) / "preview", canvas, refs, args.include_page, api)

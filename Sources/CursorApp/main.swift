@@ -67,6 +67,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let settings = menu.insertItem(withTitle: "打开控制窗口…", action: #selector(openSetup), keyEquivalent: "", at: 1)
         settings.target = self
         item.menu = menu
+        setPhase(.read)
         if CommandLine.arguments.contains("--start-editing") { startEditing() } else { awaitCurrentDocument() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.poll() }
         observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
@@ -99,7 +100,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").isEmpty {
             openNativeSession()
         } else {
-            message("等待 PowerPoint 打开本地 PPTX…")
+            message("请在 PowerPoint 中打开本地 PPTX")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.checkForDocument() }
         }
     }
@@ -118,7 +119,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         message("正在读取 PowerPoint 当前文稿…")
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             guard self.documentLookup == request else { return }
-            self.message("正在等待 PowerPoint 响应。如果 macOS 提示 PPT Cursor 请求控制 PowerPoint，请处理授权弹窗。")
+            self.message("正在读取当前文稿。如果 macOS 提示 PPT Cursor 请求控制 PowerPoint，请处理授权弹窗。")
         }
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { try PowerPointBridge.currentDocumentURL() }
@@ -129,7 +130,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 case .success(let document?):
                     self.startNativeSession(document)
                 case .success(nil):
-                    self.message("等待打开或保存本地 PPTX…")
+                    self.message("请打开或保存本地 PPTX")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.checkForDocument() }
                 case .failure(let error):
                     self.awaitingDocument = false
@@ -151,6 +152,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func startNativeSession(_ document: URL) {
+        setPhase(.read)
         awaitingDocument = false
         guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py") else {
             message("请从打包的 PPT Cursor 应用启动开放式会话")
@@ -197,6 +199,11 @@ final class Controller: NSObject, NSApplicationDelegate {
                     let status = lastLine
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
+                        if status.hasPrefix("PPT_CURSOR_PHASE="),
+                           let next = Phase(rawValue: String(status.dropFirst("PPT_CURSOR_PHASE=".count))) {
+                            self.setPhase(next)
+                            return
+                        }
                         if !status.hasPrefix("preview: ") { self.message(status) }
                         if status.contains("无法自动定位画布") { self.openSetup() }
                     }
@@ -221,6 +228,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     guard self.nativeProcess === process else { return }
                     self.nativeProcess = nil
                     self.nativeDirectory = nil
+                    self.setPhase(.read)
                     self.message(finalStatus)
                 }
             }
@@ -242,6 +250,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         nativeProcess = nil
         if let nativeDirectory { try? FileManager.default.removeItem(at: nativeDirectory) }
         nativeDirectory = nil
+        setPhase(.read)
         message("开放式预测已停止")
     }
 
@@ -261,26 +270,33 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
     }
+    private enum Phase: String {
+        case read = "读取"
+        case preview = "提供预览"
+        case apply = "操作"
+    }
+
+    private var phase: Phase = .read
+
+    private func setPhase(_ next: Phase) {
+        phase = next
+        item.button?.title = next.rawValue
+        item.button?.imagePosition = .imageLeading
+        status.title = next.rawValue
+        setup.update(next.rawValue)
+        item.button?.toolTip = next.rawValue
+    }
+
     private func message(_ value: String) {
-        status.title = value
-        let caption: String
-        if value.hasPrefix("已采纳，正在准备") { caption = "下一条建议…" }
-        else if value.hasPrefix("正在根据当前页") { caption = "预测中…" }
-        else if value.hasPrefix("正在生成画布") { caption = "生成预览…" }
-        else if value.hasPrefix("已显示建议") { caption = "有建议" }
-        else if value.hasPrefix("等待返回") { caption = "等待编辑" }
-        else if value.hasPrefix("等待更多编辑") || value.hasPrefix("建议没有可见") { caption = "暂无建议" }
-        else if value.contains("失败") || value.contains("无法显示") { caption = "查看状态" }
-        else { caption = "" }
-        item.button?.title = caption
-        item.button?.imagePosition = caption.isEmpty ? .imageOnly : .imageLeading
-        item.button?.toolTip = value
-        setup.update(value)
+        status.title = phase.rawValue + " · " + value
+        item.button?.toolTip = status.title
+        setup.update(status.title)
         if CommandLine.arguments.contains("--verbose") {
             FileHandle.standardError.write(Data((value + "\n").utf8))
         }
     }
     private func invalidate() {
+        if nativeProcess == nil { setPhase(.read) }
         generation += 1
         inference?.cancel()
         inference = nil
@@ -338,7 +354,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         invalidate()
         history.reset()
         toggle.title = monitoring ? "暂停预测" : "开始预测"
-        message(monitoring ? "等待 PowerPoint 编辑" : "已暂停")
+        message(monitoring ? "正在读取当前页" : "已暂停")
     }
 
     @objc private func retryPrediction() {
@@ -474,7 +490,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 self.monitoring = true
                 self.toggle.title = "暂停预测"
                 ppt.activate(options: [])
-                self.message("已定位画布，等待编辑")
+                self.message("已定位画布，正在读取当前页")
             }
         }
     }
@@ -580,7 +596,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                         self.predictWithImportedImages = false
                         self.invalidate()
                         self.waiting = context
-                        self.message(context == nil ? "已读取幻灯片，等待编辑" : "正在判断下一步…")
+                        self.message(context == nil ? "已读取当前页" : "正在判断下一步…")
                         return
                     }
                     if let (baseline, suggestion) = self.hiddenSuggestion, baseline == state {
@@ -628,7 +644,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 self.inFlightContext = nil
                 switch result {
                 case .success(let suggestion):
-                    guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("等待更多编辑"); return }
+                    guard !suggestion.edits.isEmpty || !suggestion.artwork.isEmpty else { self.message("当前页暂无可见改动"); return }
                     // PowerPoint may have changed during inference, between two polling ticks.
                     // Publish only after a fresh capture confirms the baseline and the mouse is up.
                     self.generation += 1 // Reject any capture already in flight when inference finished.
@@ -674,6 +690,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                                        owner: self, accept: #selector(accept), dismiss: #selector(dismiss), page: frame)
         suggestionPanel = controls
         controls.orderFrontRegardless()
+        setPhase(.preview)
         message(prediction.summary + (shortcutLabel.map { " · " + $0 + " 采纳" } ?? " · 点击采纳"))
     }
 
@@ -690,6 +707,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             return
         }
         let references = images
+        setPhase(.apply)
         applying = true
         invalidate()
         let revision = generation
@@ -697,6 +715,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             let result = Result { try PowerPointBridge.apply(proposal, to: state, images: references) }
             DispatchQueue.main.async {
                 self.applying = false
+                self.setPhase(.read)
                 guard revision == self.generation else { return }
                 switch result {
                 case .success(let state): _ = self.history.observe(state, acceptedSuggestion: proposal.summary); self.message("已采纳")

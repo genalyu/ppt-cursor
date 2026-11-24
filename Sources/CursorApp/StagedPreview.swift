@@ -77,6 +77,8 @@ enum StagedPreview {
                 app.terminate(nil)
                 return
             }
+            print("PPT_CURSOR_PHASE=操作")
+            fflush(stdout)
             guard direct else {
                 submitted = true
                 panel.orderOut(nil)
@@ -111,6 +113,8 @@ enum StagedPreview {
                             app.terminate(nil)
                             return
                         }
+                        print("PPT_CURSOR_PHASE=提供预览")
+                        fflush(stdout)
                         submitted = false
                         panel.orderFrontRegardless()
                         feedbackPanel?.orderFrontRegardless()
@@ -167,6 +171,7 @@ enum StagedPreview {
                                        page: frame, actionTitle: !direct ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        print("PPT_CURSOR_PHASE=提供预览")
         print("已显示建议 · " + (shortcutLabel ?? "点击面板采纳"))
         fflush(stdout)
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
@@ -175,6 +180,8 @@ enum StagedPreview {
         var focusGeneration = 0
         func suspendPreview(_ reason: String) {
             guard !submitted, !hidden else { return }
+            print("PPT_CURSOR_PHASE=读取")
+            fflush(stdout)
             hidden = true
             focusGeneration += 1
             shortcut.disable()
@@ -241,6 +248,8 @@ enum StagedPreview {
                         }
                         panel.orderFrontRegardless()
                         controls.orderFrontRegardless()
+                        print("PPT_CURSOR_PHASE=提供预览")
+                        fflush(stdout)
                         trace("resumed after baseline verification")
                     }
                 }
