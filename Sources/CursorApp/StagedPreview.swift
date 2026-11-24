@@ -167,6 +167,8 @@ enum StagedPreview {
                                        page: frame, actionTitle: !direct ? "另存建议副本…" : nil)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        print("已显示建议 · " + (shortcutLabel ?? "点击面板采纳"))
+        fflush(stdout)
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
         let workspaceEvents = NSWorkspace.shared.notificationCenter
         var hidden = false

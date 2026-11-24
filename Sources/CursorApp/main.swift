@@ -197,7 +197,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     let status = lastLine
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
-                        self.message(status)
+                        if !status.hasPrefix("preview: ") { self.message(status) }
                         if status.contains("无法自动定位画布") { self.openSetup() }
                     }
                 }
@@ -263,6 +263,16 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     private func message(_ value: String) {
         status.title = value
+        let caption: String
+        if value.hasPrefix("正在根据当前页") { caption = "预测中…" }
+        else if value.hasPrefix("正在生成画布") { caption = "生成预览…" }
+        else if value.hasPrefix("已显示建议") { caption = "有建议" }
+        else if value.hasPrefix("等待返回") { caption = "等待编辑" }
+        else if value.hasPrefix("等待更多编辑") || value.hasPrefix("建议没有可见") { caption = "暂无建议" }
+        else if value.contains("失败") || value.contains("无法显示") { caption = "查看状态" }
+        else { caption = "" }
+        item.button?.title = caption
+        item.button?.imagePosition = caption.isEmpty ? .imageOnly : .imageLeading
         item.button?.toolTip = value
         setup.update(value)
         if CommandLine.arguments.contains("--verbose") {

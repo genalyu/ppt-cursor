@@ -904,9 +904,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     if not script.is_file():
         script = resources.parent / "Sources/MacIntegration/Resources/snapshot.js"
     timed_out = False
+    deferred_since = None
+    reported_wait = False
 
     def capture():
-        nonlocal timed_out
+        nonlocal timed_out, deferred_since, reported_wait
         try:
             data = subprocess.check_output(["/usr/bin/osascript", "-l", "JavaScript", str(script), "settled"], timeout=20,
                                            stderr=subprocess.PIPE)
@@ -921,7 +923,14 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
         timed_out = False
         state = json.loads(data)
         if state == "deferred":
+            if deferred_since is None:
+                deferred_since = time.monotonic()
+            elif not reported_wait and time.monotonic() - deferred_since >= 2:
+                print("等待返回 PowerPoint 编辑窗口并松开鼠标。", flush=True)
+                reported_wait = True
             return state
+        deferred_since = None
+        reported_wait = False
         if state and matches_document(state["document"], source):
             return state
         return None
