@@ -11,6 +11,22 @@ private final class StagedActions: NSObject {
     @objc func dismiss() { onDismiss?(); NSApp.terminate(nil) }
 }
 
+private struct CanvasCalibration: Codable {
+    let windowID: CGWindowID
+    let windowSize: CGSize
+    let document: String
+    let zoom: Int?
+    let slideSize: CGSize
+    let localPage: CGRect
+
+    func page(in window: PowerPointWindow, for slide: SlideSnapshot) -> CGRect? {
+        guard window.id == windowID, window.frame.size == windowSize, slide.document == document,
+              zoom != nil, slide.viewZoom == zoom, slideSize == CGSize(width: slide.width, height: slide.height)
+        else { return nil }
+        return localPage.offsetBy(dx: window.frame.minX, dy: window.frame.minY)
+    }
+}
+
 enum StagedPreview {
     static func display(directory: URL) throws {
         let diagnostics = ProcessInfo.processInfo.environment["PPT_CURSOR_TRACE_PREVIEW"] == "1"
@@ -29,9 +45,16 @@ enum StagedPreview {
         app.setActivationPolicy(.accessory)
         let aspect = baseline.width / baseline.height
         let detected = CGPreflightScreenCaptureAccess() ? PageLocator.locate(in: window, aspect: aspect) : nil
+        // Each suggestion runs in a new process. The watcher owns this private directory
+        // for the whole session and removes it when the user stops predicting.
+        let cache = ProcessInfo.processInfo.environment["PPT_CURSOR_MANAGED_SESSION"] == "1"
+            ? directory.deletingLastPathComponent().appendingPathComponent("canvas-calibration.json") : nil
+        let saved = cache.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(CanvasCalibration.self, from: $0) }
         let frame: NSRect
         if let detected {
             frame = detected
+        } else if let remembered = saved?.page(in: window, for: baseline) {
+            frame = remembered
         } else {
             let picker = CalibrationPanel(contentRect: window.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             picker.isOpaque = false
@@ -75,6 +98,12 @@ enum StagedPreview {
                   current.id == window.id, current.frame == window.frame,
                   try PowerPointBridge.capture() == baseline else { throw CocoaError(.userCancelled) }
             frame = selection
+        }
+        if let cache {
+            let calibration = CanvasCalibration(windowID: window.id, windowSize: window.frame.size,
+                document: baseline.document, zoom: baseline.viewZoom, slideSize: CGSize(width: baseline.width, height: baseline.height),
+                localPage: frame.offsetBy(dx: -window.frame.minX, dy: -window.frame.minY))
+            try? JSONEncoder().encode(calibration).write(to: cache, options: .atomic)
         }
         func locate(_ current: PowerPointWindow) -> NSRect? {
             if detected == nil { return current.id == window.id && current.frame == window.frame ? frame : nil }
