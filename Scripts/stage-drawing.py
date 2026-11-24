@@ -945,6 +945,9 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             return state
         return None
 
+    # Retry a stationary page after a quiet interval, or on return to PowerPoint.
+    review_after = float("inf")
+    outside_editor = False
     queued_acceptance = None
     accepted_pages = {}
     recent_pages = {}
@@ -962,8 +965,14 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
             state = queued_acceptance if following_acceptance else capture()
             queued_acceptance = None
             if state == "deferred":
+                outside_editor = True
                 time.sleep(0.5)
                 continue
+            if session_canvas and (outside_editor or time.monotonic() >= review_after):
+                if awaiting_save is None:
+                    last_prediction = None
+                review_after = float("inf")
+            outside_editor = False
             if not state:
                 history.clear()
                 recent_pages.clear()
@@ -1027,6 +1036,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     if file_revision(source) != source_revision or (observed != "deferred" and observed != state):
                         raise StalePrediction()
 
+                review_after = float("inf")
                 try:
                     args = (baseline, str(state["slideID"]), history_file, candidate, references,
                             dismissed, include_page, api, check_current)
@@ -1052,8 +1062,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         raise
                     if candidate.exists():
                         shutil.rmtree(candidate)
+                    review_after = time.monotonic() + 30
                     print(f"本次预测失败：{error}", file=sys.stderr, flush=True)
                     continue
+                if session_canvas:
+                    review_after = time.monotonic() + 30
                 if candidate.exists():
                     confirmed = capture()
                     while confirmed == "deferred":
@@ -1080,6 +1093,8 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                             elif (candidate / "dismissed").exists():
                                 summary = (candidate / "summary.txt").read_text()[:500]
                                 dismissed = [item for item in dismissed if item != summary][-7:] + [summary]
+                                last_prediction = None
+                            review_after = time.monotonic() + 30
                             shutil.rmtree(candidate)
                             continue
                         destination.mkdir()

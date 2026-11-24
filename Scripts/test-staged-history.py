@@ -208,3 +208,25 @@ with tempfile.TemporaryDirectory() as tmp:
         except StopIteration:
             pass
     assert events == ["rendered", "shown"], events
+
+# An unchanged foreground page gets another assessment after 30 seconds,
+# and returning to it also starts a new assessment without another edit.
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp)
+    source = folder / "continuous.pptx"
+    source.touch()
+    page = json.dumps(dict(document=str(source), slideID=1, objects=[dict(id="figure", x=0)]))
+    samples = [(0, page), (1, page), (12, page), (32, page), (34, '"deferred"'), (35, page)]
+    clock = [0]
+    reviews = []
+    def read_samples():
+        for clock[0], sample in samples:
+            yield sample
+    with patch.object(staging.subprocess, "check_output", side_effect=read_samples()), \
+         patch.object(staging, "predict_preview", side_effect=lambda *args: reviews.append(clock[0])), \
+         patch.object(staging.time, "monotonic", side_effect=lambda: clock[0]), patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, folder / "preview", folder / "canvas")
+        except StopIteration:
+            pass
+    assert reviews == [1, 32, 35], reviews
