@@ -54,7 +54,7 @@ public enum PowerPointBridge {
             throw BridgeFailure("建议副本已变化，请重新生成预览。")
         }
         let name = "ppt-cursor-" + UUID().uuidString
-        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.microsoft.Powerpoint/Data/tmp").appendingPathComponent(name)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: folder) }
         let copy = folder.appendingPathComponent(name + ".pptx")

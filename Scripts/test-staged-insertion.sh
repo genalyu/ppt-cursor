@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build -c release --product PPTCursor
 bin=$(swift build -c release --show-bin-path)
-dir=$(mktemp -d "$HOME/Library/Containers/com.microsoft.Powerpoint/Data/tmp/ppt-cursor-insert-XXXXXX")
+dir=$(mktemp -d "${TMPDIR:-/tmp}/ppt-cursor-insert-XXXXXX")
 name=$(basename "$dir").pptx
 cleanup() {
     osascript - "$name" <<'APPLE' >/dev/null 2>&1 || true

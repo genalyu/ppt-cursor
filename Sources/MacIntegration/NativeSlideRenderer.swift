@@ -9,14 +9,14 @@ public enum NativeSlideRenderer {
             throw BridgeFailure("请选择 PPTX 文件并指定从 1 开始的页码。")
         }
         let name = "ppt-cursor-" + UUID().uuidString
-        let scratch = manager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/com.microsoft.Powerpoint/Data/tmp")
+        let scratch = manager.temporaryDirectory
             .appendingPathComponent(name)
         try manager.createDirectory(at: scratch, withIntermediateDirectories: false,
                                     attributes: [.posixPermissions: 0o700])
         defer { try? manager.removeItem(at: scratch) }
         let copy = scratch.appendingPathComponent(name + ".pptx")
         let pdf = scratch.appendingPathComponent("render.pdf")
+        try Data().write(to: pdf, options: .withoutOverwriting)
         try manager.copyItem(at: file, to: copy)
         let script = ResourcesBundle.value.url(forResource: "render", withExtension: "applescript")!
         let process = Process()
