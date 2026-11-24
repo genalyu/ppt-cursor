@@ -13,7 +13,6 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var nativeDirectory: URL?
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
-    private var calibration: NSPanel?
     private var overlay: NSPanel?
     private var suggestionPanel: SuggestionPanel?
     private var api: APISettings?
@@ -46,7 +45,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(status)
         menu.addItem(.separator())
-        for (title, action) in [("定位幻灯片画布…", #selector(calibrate)), ("采纳当前建议", #selector(accept)),
+        for (title, action) in [("定位幻灯片画布…", #selector(startEditing)), ("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
                                 ("清空图片素材", #selector(clearImages)), ("启动开放式预测…", #selector(openNativeSession)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("停止开放式预测", #selector(stopNativeSession)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
@@ -123,6 +122,11 @@ final class Controller: NSObject, NSApplicationDelegate {
     private func startNativeSession(_ document: URL) {
         guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py") else {
             message("请从打包的 PPT Cursor 应用启动开放式会话")
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            openSetup()
+            message("自动定位需要屏幕录制权限。请在系统设置中允许 PPT Cursor，然后重新打开应用。")
             return
         }
         let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
@@ -367,7 +371,13 @@ final class Controller: NSObject, NSApplicationDelegate {
     @objc private func startEditing() {
         documentLookup = nil
         if nativeProcess != nil { stopNativeSession() }
-        guard locationRequest == nil, calibration == nil else { return }
+        guard locationRequest == nil else { return }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+            openSetup()
+            message("自动定位需要屏幕录制权限。请在系统设置中允许 PPT Cursor，然后重新打开应用。")
+            return
+        }
+
         guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
             message("请打开 PowerPoint 和要编辑的演示文稿，然后点击「定位画布并开始」。")
             openSetup()
@@ -406,7 +416,8 @@ final class Controller: NSObject, NSApplicationDelegate {
                 guard CGPreflightScreenCaptureAccess(), let current = PowerPointWindow.front(of: ppt),
                       current.id == window.id, slide.height > 0,
                       let page = PageLocator.locate(in: current, aspect: slide.width / slide.height) else {
-                    self.presentCalibration(aspect: slide.width / slide.height)
+                    self.openSetup()
+                    self.message("无法自动定位画布。请在 PowerPoint 普通视图中完整显示当前页，然后重新定位。")
                     return
                 }
                 self.invalidate()
@@ -422,62 +433,6 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func calibrate() {
-        documentLookup = nil
-        if nativeProcess != nil { stopNativeSession() }
-        let aspect = history.current.map { $0.width / $0.height }
-        presentCalibration(aspect: aspect)
-    }
-
-    private func presentCalibration(aspect: Double?) {
-        guard calibration == nil else { return }
-        locationRequest = nil
-        toggle.title = monitoring ? "暂停预测" : "开始预测"
-        guard let ppt = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
-            message("请先打开 PowerPoint 和要编辑的幻灯片")
-            return
-        }
-        setup.orderOut(nil)
-        ppt.activate(options: [])
-        guard let window = PowerPointWindow.front(of: ppt) else {
-            openSetup()
-            message("请先显示 PowerPoint 的编辑窗口")
-            return
-        }
-        invalidate()
-        let panel = CalibrationPanel(contentRect: window.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.level = .screenSaver
-        let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size), aspect: aspect) { [weak self] rect in
-            guard let self else { return }
-            self.calibration?.orderOut(nil)
-            self.calibration = nil
-            guard let rect else {
-                if self.monitoring, self.frame != nil {
-                    self.message("已取消重新定位，继续使用原画布")
-                    ppt.activate(options: [])
-                } else {
-                    self.message("已取消定位，可重新点击「定位画布并开始」。")
-                    self.openSetup()
-                }
-                return
-            }
-            self.frame = rect
-            self.calibratedWindow = window
-            self.monitoring = true
-            self.history.reset()
-            self.toggle.title = "暂停预测"
-            self.message("等待 PowerPoint 编辑")
-            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
-        }
-        panel.contentView = view
-        calibration = panel
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
-        panel.makeFirstResponder(view)
-    }
-
     private var editingWithPointer: Bool {
         NSEvent.pressedMouseButtons & 1 != 0
     }
@@ -490,7 +445,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func poll() {
-        guard monitoring, frontmost, calibration == nil, !reading, !applying else { return }
+        guard monitoring, frontmost, !reading, !applying else { return }
         // A held drag may pause between mouse movements. Sample the committed slide after release.
         guard !editingWithPointer else {
             hideDuringCanvasDrag()

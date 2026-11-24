@@ -11,22 +11,6 @@ private final class StagedActions: NSObject {
     @objc func dismiss() { onDismiss?(); NSApp.terminate(nil) }
 }
 
-private struct CanvasCalibration: Codable {
-    let windowID: CGWindowID
-    let windowSize: CGSize
-    let document: String
-    let zoom: Int?
-    let slideSize: CGSize
-    let localPage: CGRect
-
-    func page(in window: PowerPointWindow, for slide: SlideSnapshot) -> CGRect? {
-        guard window.id == windowID, window.frame.size == windowSize, slide.document == document,
-              zoom != nil, slide.viewZoom == zoom, slideSize == CGSize(width: slide.width, height: slide.height)
-        else { return nil }
-        return localPage.offsetBy(dx: window.frame.minX, dy: window.frame.minY)
-    }
-}
-
 enum StagedPreview {
     static func display(directory: URL) throws {
         let diagnostics = ProcessInfo.processInfo.environment["PPT_CURSOR_TRACE_PREVIEW"] == "1"
@@ -44,70 +28,13 @@ enum StagedPreview {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let aspect = baseline.width / baseline.height
-        let detected = CGPreflightScreenCaptureAccess() ? PageLocator.locate(in: window, aspect: aspect) : nil
-        // Each suggestion runs in a new process. The watcher owns this private directory
-        // for the whole session and removes it when the user stops predicting.
-        let cache = ProcessInfo.processInfo.environment["PPT_CURSOR_MANAGED_SESSION"] == "1"
-            ? directory.deletingLastPathComponent().appendingPathComponent("canvas-calibration.json") : nil
-        let saved = cache.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(CanvasCalibration.self, from: $0) }
-        let frame: NSRect
-        if let detected {
-            frame = detected
-        } else if let remembered = saved?.page(in: window, for: baseline) {
-            frame = remembered
-        } else {
-            let picker = CalibrationPanel(contentRect: window.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-            picker.isOpaque = false
-            picker.backgroundColor = .clear
-            picker.level = .screenSaver
-            var selection: NSRect?
-            let view = CalibrationView(frame: NSRect(origin: .zero, size: window.frame.size), aspect: aspect) { rect in
-                selection = rect
-                app.stopModal()
-            }
-            picker.contentView = view
-            app.activate(ignoringOtherApps: true)
-            picker.makeKeyAndOrderFront(nil)
-            picker.makeFirstResponder(view)
-            // The user can switch documents or keep editing while choosing the page.
-            // Release the modal panel so the watcher can see the next edit.
-            var checking = false
-            let validity = Timer(timeInterval: 1, repeats: true) { _ in
-                guard !checking else { return }
-                guard let current = PowerPointWindow.front(of: powerpoint),
-                      current.id == window.id, current.frame == window.frame else {
-                    app.stopModal()
-                    return
-                }
-                checking = true
-                DispatchQueue.global(qos: .utility).async {
-                    let matches = (try? PowerPointBridge.capture()) == baseline
-                    DispatchQueue.main.async {
-                        checking = false
-                        if !matches && app.modalWindow === picker { app.stopModal() }
-                    }
-                }
-            }
-            RunLoop.main.add(validity, forMode: .modalPanel)
-            app.runModal(for: picker)
-            validity.invalidate()
-            picker.orderOut(nil)
-            guard let selection else { throw CocoaError(.userCancelled) }
-            powerpoint.activate(options: [])
-            guard let current = PowerPointWindow.front(of: powerpoint),
-                  current.id == window.id, current.frame == window.frame,
-                  try PowerPointBridge.capture() == baseline else { throw CocoaError(.userCancelled) }
-            frame = selection
-        }
-        if let cache {
-            let calibration = CanvasCalibration(windowID: window.id, windowSize: window.frame.size,
-                document: baseline.document, zoom: baseline.viewZoom, slideSize: CGSize(width: baseline.width, height: baseline.height),
-                localPage: frame.offsetBy(dx: -window.frame.minX, dy: -window.frame.minY))
-            try? JSONEncoder().encode(calibration).write(to: cache, options: .atomic)
-        }
         func locate(_ current: PowerPointWindow) -> NSRect? {
-            if detected == nil { return current.id == window.id && current.frame == window.frame ? frame : nil }
-            return PageLocator.locate(in: current, aspect: aspect)
+            PageLocator.locate(in: current, aspect: aspect)
+        }
+        guard let frame = locate(window) else {
+            throw NSError(domain: "PPTCursor.Preview", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "无法自动定位画布。请确认已允许屏幕录制，并在普通视图中完整显示当前页。"
+            ])
         }
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
@@ -231,11 +158,6 @@ enum StagedPreview {
         feedbackPanel = controls
         controls.orderFrontRegardless()
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
-        // A manually selected page cannot be remeasured after a scroll, zoom or canvas click.
-        let manualMonitor = detected == nil ? NSEvent.addGlobalMonitorForEvents(matching: [.scrollWheel, .magnify, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { _ in
-            if !submitted { app.terminate(nil) }
-        } : nil
-        defer { if let manualMonitor { NSEvent.removeMonitor(manualMonitor) } }
         let workspaceEvents = NSWorkspace.shared.notificationCenter
         var hidden = false
         var focusGeneration = 0
