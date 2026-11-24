@@ -75,8 +75,8 @@ def accepted_baselines(save_before_last_edit):
                 pass
         return reads
 
-assert accepted_baselines(False) == [b"original file", b"accepted diamond"]
-assert accepted_baselines(True) == [b"original file", b"new saved version"]
+assert accepted_baselines(False) == [b"original file", b"accepted diamond", b"accepted diamond"]
+assert accepted_baselines(True) == [b"original file", b"accepted diamond", b"new saved version"]
 print("Verified accepted geometry before save and refreshed baseline after save")
 
 
@@ -142,3 +142,16 @@ def dismissed_history(mark_dismissed):
 assert dismissed_history(True) == [("1", []), ("2", []), ("1", ["Align the third object"])]
 assert dismissed_history(False) == [("1", []), ("2", []), ("1", [])]
 print("Verified explicit dismissals persist on the original slide and ordinary preview exits do not count")
+
+# Opening a finished page should request one review even with no edit history.
+source = Path(__file__).resolve().parents[1] / "Examples/Tab-Demo.pptx"
+stationary = json.dumps(dict(document=str(source), slideID=256, width=720, height=540,
+                             objects=[dict(id="figure", x=10)]))
+with tempfile.TemporaryDirectory() as tmp, patch.object(staging.subprocess, "check_output", side_effect=[stationary] * 6), \
+     patch.object(staging, "predict_preview") as review, patch.object(staging.time, "sleep"):
+    try:
+        staging.watch_preview(source, Path(tmp) / "preview", Path(tmp) / "canvas")
+    except StopIteration:
+        pass
+    review.assert_called_once()
+print("Verified one review of a stationary page without repeated idle requests")
