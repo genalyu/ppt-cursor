@@ -157,7 +157,6 @@ final class Controller: NSObject, NSApplicationDelegate {
             return
         }
         // Prediction reads the PowerPoint document. Only the canvas overlay needs screen access.
-        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
         let session = FileManager.default.temporaryDirectory.appendingPathComponent("PPT-Cursor-" + UUID().uuidString)
         do {
             try FileManager.default.createDirectory(at: session, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])

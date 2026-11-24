@@ -28,23 +28,33 @@ enum StagedPreview {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let aspect = baseline.width / baseline.height
+        let canvas = PageLocator.locate(in: window, aspect: aspect)
+        let thumbnail = canvas == nil
         func locate(_ current: PowerPointWindow) -> NSRect? {
-            PageLocator.locate(in: current, aspect: aspect)
+            if thumbnail {
+                let width = min(420, current.frame.width * 0.45, current.frame.height * 0.45 * aspect)
+                return NSRect(x: current.frame.maxX - width - 16, y: current.frame.minY + 40,
+                              width: width, height: width / aspect)
+            }
+            return PageLocator.locate(in: current, aspect: aspect)
         }
-        guard let frame = locate(window) else {
-            throw NSError(domain: "PPTCursor.Preview", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "无法自动定位画布。请确认已允许屏幕录制，并在普通视图中完整显示当前页。"
-            ])
-        }
+        guard let frame = canvas ?? locate(window) else { throw CocoaError(.userCancelled) }
+        let artwork: NSImage
+        if thumbnail {
+            guard let page = NSImage(contentsOf: directory.appendingPathComponent("after.png")) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            artwork = page
+        } else { artwork = image }
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = false
+        panel.hasShadow = thumbnail
         panel.ignoresMouseEvents = true
         panel.level = .floating
         let view = NSImageView(frame: NSRect(origin: .zero, size: frame.size))
-        view.image = image
+        view.image = artwork
         view.imageScaling = .scaleAxesIndependently
         panel.contentView = view
         panel.orderFrontRegardless()
@@ -151,7 +161,7 @@ enum StagedPreview {
             shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
         }
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
-        let controls = SuggestionPanel(summary: !direct ? "可保存为副本 · " + summary : summary,
+        let controls = SuggestionPanel(summary: (thumbnail ? "修改后预览 · " : "") + (!direct ? "可保存为副本 · " : "") + summary,
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
                                        page: frame, actionTitle: !direct ? "另存建议副本…" : nil)
