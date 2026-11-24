@@ -185,3 +185,26 @@ with tempfile.TemporaryDirectory() as tmp:
     assert len(requests) == 2 and requests[1]["acceptedSuggestion"] == "Move shape"
     assert requests[1]["objects"] == page(10)["objects"]
 print("Verified immediate follow-up from confirmed acceptance while PowerPoint is in the background")
+
+# A completed first prediction can be rendered in the background, but is shown
+# only after a matching foreground snapshot is available.
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp)
+    source = folder / "background.pptx"
+    source.touch()
+    current = dict(document=str(source), slideID=1, objects=[dict(id="figure", x=0)])
+    samples = iter(map(json.dumps, [current, current, current, "deferred", "deferred", current]))
+    events = []
+    def render_in_background(baseline, selector, history_file, candidate, refs, dismissed, image, api, check):
+        check()
+        check()
+        candidate.mkdir()
+        events.append("rendered")
+    with patch.object(staging.subprocess, "check_output", side_effect=samples), \
+         patch.object(staging.subprocess, "run", side_effect=lambda command: events.append("shown")), \
+         patch.object(staging, "predict_preview", side_effect=render_in_background), patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, folder / "preview", folder / "canvas")
+        except StopIteration:
+            pass
+    assert events == ["rendered", "shown"], events

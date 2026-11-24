@@ -1022,14 +1022,9 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     baseline = saved[0]
                 def check_current():
                     observed = capture()
-                    if following_acceptance and observed == "deferred":
-                        if file_revision(source) != source_revision:
-                            raise StalePrediction()
-                        return
-                    while observed == "deferred":
-                        time.sleep(0.5)
-                        observed = capture()
-                    if observed != state or file_revision(source) != source_revision:
+                    # The request and renderer use the already captured snapshot.
+                    # Always recheck the foreground document before showing the result.
+                    if file_revision(source) != source_revision or (observed != "deferred" and observed != state):
                         raise StalePrediction()
 
                 try:
