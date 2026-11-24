@@ -10,6 +10,9 @@ final class Controller: NSObject, NSApplicationDelegate {
     private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab)
     private var documentLookup: UUID?
     private var awaitingDocument = false
+    private var followsActiveDocument = true
+    private var checkingDocument = false
+    private var nextDocumentCheck = Date.distantPast
     private var nativeDocument: URL?
     private var nativeProcess: Process?
     private var nativeDirectory: URL?
@@ -86,6 +89,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     private func awaitCurrentDocument() {
         guard !awaitingDocument else { return }
+        followsActiveDocument = true
         awaitingDocument = true
         checkForDocument()
     }
@@ -142,6 +146,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         chooser.allowedContentTypes = [UTType(filenameExtension: "pptx")!]
         chooser.message = "选择已在 PowerPoint 打开的文稿。本次开放式预测使用 " + (api?.model ?? "Codex CLI") + "。"
         guard chooser.runModal() == .OK, let document = chooser.url else { return }
+        followsActiveDocument = false
         startNativeSession(document)
     }
 
@@ -194,6 +199,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
                         self.message(status)
+                        if status.contains("无法自动定位画布") { self.openSetup() }
                     }
                 }
                 let reader = output.fileHandleForReading
@@ -475,7 +481,27 @@ final class Controller: NSObject, NSApplicationDelegate {
         hiddenSuggestion = ready
     }
 
+    private func followPowerPointDocument() {
+        guard followsActiveDocument, frontmost, let process = nativeProcess, let document = nativeDocument,
+              !checkingDocument, Date() >= nextDocumentCheck else { return }
+        nextDocumentCheck = Date().addingTimeInterval(2)
+        checkingDocument = true
+        DispatchQueue.global(qos: .utility).async {
+            let result = Result { try PowerPointBridge.currentDocumentURL() }
+            DispatchQueue.main.async {
+                self.checkingDocument = false
+                guard self.nativeProcess === process, self.frontmost, case .success(let current?) = result,
+                      current.resolvingSymlinksInPath() != document.resolvingSymlinksInPath() else { return }
+                self.stopNativeSession()
+                self.imageImport?.cancel()
+                self.images.removeAll()
+                self.startNativeSession(current)
+            }
+        }
+    }
+
     private func poll() {
+        followPowerPointDocument()
         guard monitoring, frontmost, !reading, !applying else { return }
         // A held drag may pause between mouse movements. Sample the committed slide after release.
         guard !editingWithPointer else {
