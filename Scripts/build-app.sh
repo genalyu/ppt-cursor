@@ -6,8 +6,12 @@ bin=$(swift build -c release --show-bin-path)
 app="dist/PPT Cursor.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin/PPTCursor" "$app/Contents/MacOS/"
-cp Scripts/stage-drawing.py "$app/Contents/Resources/"
+cp Scripts/stage-drawing.py Scripts/web_assets.py "$app/Contents/Resources/"
 cp Packaging/Info.plist "$app/Contents/"
+icons=$(mktemp -d)
+trap 'rm -rf "$icons"' EXIT
+swift Scripts/make-icon.swift "$icons/AppIcon.iconset"
+iconutil -c icns "$icons/AppIcon.iconset" -o "$app/Contents/Resources/AppIcon.icns"
 for module in CursorCore MacIntegration; do
     ditto "$bin/PPTCursor_${module}.bundle" "$app/Contents/Resources/PPTCursor_${module}.bundle"
 done

@@ -5,7 +5,10 @@ enum NativeSessionLauncher {
         let process = Process()
         var environment = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let paths = [codex?.deletingLastPathComponent().path, environment["PATH"], "/opt/homebrew/bin", "/usr/local/bin", home + "/anaconda3/bin", home + "/miniconda3/bin", "/usr/bin"].compactMap { $0 }
+        // Source builds live under <repository>/dist; Finder does not inherit a venv.
+        let projectPython = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".venv/bin").path
+        let paths = [projectPython, codex?.deletingLastPathComponent().path, environment["PATH"], "/opt/homebrew/bin", "/usr/local/bin", home + "/anaconda3/bin", home + "/miniconda3/bin", "/usr/bin"].compactMap { $0 }
         environment["PATH"] = paths.joined(separator: ":")
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PPT_CURSOR_MANAGED_SESSION"] = "1"
@@ -23,7 +26,7 @@ enum NativeSessionLauncher {
             fi
             IFS=:
         done
-        echo '找不到装有 Pillow 的 Python 3 环境' >&2
+        echo '找不到装有 Pillow 的 Python 3 环境。源码用户请在项目 .venv 中安装 requirements.txt；详见 README。' >&2
         exit 1
         """
         process.arguments = ["-c", launch, "ppt-cursor", script.path, "session", document.path]

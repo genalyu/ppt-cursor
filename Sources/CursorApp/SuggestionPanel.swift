@@ -5,6 +5,11 @@ final class SuggestionPanel: NSPanel {
     private let label = NSTextField(wrappingLabelWithString: "")
     private let confirm = NSButton()
     private let skip = NSButton()
+    private var sourceURL: URL?
+
+    @objc private func openSource() {
+        if let sourceURL { NSWorkspace.shared.open(sourceURL) }
+    }
 
     func updateShortcut(_ label: String?) {
         confirm.title = label.map { "采纳  " + $0 } ?? "采纳"
@@ -19,7 +24,7 @@ final class SuggestionPanel: NSPanel {
     }
 
     init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
-         page: NSRect, canAccept: Bool = true, actionTitle: String? = nil) {
+         page: NSRect, canAccept: Bool = true, actionTitle: String? = nil, sourceURL: URL? = nil) {
         let width = min(420, max(240, page.width - 16))
         let size = NSSize(width: width, height: 84)
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
@@ -46,7 +51,12 @@ final class SuggestionPanel: NSPanel {
         skip.title = "忽略"
         skip.target = owner
         skip.action = dismiss
-        let buttons = NSStackView(views: canAccept ? [confirm, skip] : [skip])
+        var actions: [NSView] = canAccept ? [confirm, skip] : [skip]
+        if let sourceURL, sourceURL.scheme == "https", sourceURL.host == "commons.wikimedia.org" {
+            self.sourceURL = sourceURL
+            actions.insert(NSButton(title: "素材来源", target: self, action: #selector(openSource)), at: 0)
+        }
+        let buttons = NSStackView(views: actions)
         for view in [label as NSView, buttons] {
             surface.addSubview(view)
             view.translatesAutoresizingMaskIntoConstraints = false

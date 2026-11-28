@@ -1,0 +1,9 @@
+# Security and data handling
+
+API keys are stored in the macOS Keychain. Model and endpoint preferences are stored locally. The application passes API settings to its worker over standard input; keys should never appear in command arguments or diagnostic output.
+
+Starting prediction sends the active slide's text, object properties and recent editing context to the chosen model provider. User-supplied reference images and automatically searched candidate images are sent to the model; the current slide image is optional. Model-generated search keywords are sent to Wikimedia Commons. The prompt requests generic, non-sensitive keywords, but this is not a guarantee of keyword redaction. Downloads use HTTPS host and redirect allowlists, byte/pixel limits and raster normalization. Only Commons images marked public domain or CC0 are eligible; source metadata remains with inserted pictures. Temporary staging files stay on the Mac and are removed when the session exits. Accepted PPTX checkpoints and their latest snapshots are kept locally in `~/Library/Caches/io.github.genalyu.pptcursor/accepted` (private permissions, at most 12 pages, seven-day expiry) so unsaved inserted objects remain available after restarting. They contain slide content, never API keys. A crash or forced termination may leave temporary files. No application analytics are implemented.
+
+Model output is untrusted. DrawingML is restricted to supported self-contained shapes, and writeback checks the active document, slide and baseline. A preview is never permission to apply a later, different result. Do not weaken these checks in performance changes.
+
+Do not post API keys, private decks or sensitive logs in public issues. For a suspected vulnerability, use the repository's private vulnerability reporting option if enabled. Otherwise contact the repository owner privately before posting reproduction details. There is no guaranteed response SLA for this volunteer project.

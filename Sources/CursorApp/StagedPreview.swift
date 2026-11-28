@@ -30,6 +30,17 @@ enum StagedPreview {
         let aspect = baseline.width / baseline.height
         let canvas = PageLocator.locate(in: window, aspect: aspect)
         let thumbnail = canvas == nil
+        let geometryPreview = FileManager.default.fileExists(atPath: directory.appendingPathComponent("geometry-preview").path)
+        let controlDirectory = ProcessInfo.processInfo.environment["PPT_CURSOR_CONTROL_DIRECTORY"].map { URL(fileURLWithPath: $0) }
+        func consume(_ name: String) -> Bool {
+            guard let file = controlDirectory?.appendingPathComponent(name),
+                  FileManager.default.fileExists(atPath: file.path) else { return false }
+            try? FileManager.default.removeItem(at: file)
+            return true
+        }
+        // Do not carry a menu click from a previous prediction into a new proposal.
+        _ = consume("accept-preview")
+        _ = consume("dismiss-preview")
         func locate(_ current: PowerPointWindow) -> NSRect? {
             if thumbnail {
                 let width = min(420, current.frame.width * 0.45, current.frame.height * 0.45 * aspect)
@@ -77,7 +88,7 @@ enum StagedPreview {
                 app.terminate(nil)
                 return
             }
-            print("PPT_CURSOR_PHASE=操作")
+            print("PPT_CURSOR_PHASE=写入")
             fflush(stdout)
             guard direct else {
                 submitted = true
@@ -113,7 +124,7 @@ enum StagedPreview {
                             app.terminate(nil)
                             return
                         }
-                        print("PPT_CURSOR_PHASE=提供预览")
+                        print("PPT_CURSOR_PHASE=待采纳")
                         fflush(stdout)
                         submitted = false
                         panel.orderFrontRegardless()
@@ -165,13 +176,15 @@ enum StagedPreview {
             shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
         }
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
-        let controls = SuggestionPanel(summary: (thumbnail ? "修改后预览 · " : "") + (!direct ? "可保存为副本 · " : "") + summary,
+        struct AssetSource: Decodable { let sourceURL: URL }
+        let source = try? JSONDecoder().decode(AssetSource.self, from: Data(contentsOf: directory.appendingPathComponent("asset-source.json")))
+        let controls = SuggestionPanel(summary: (geometryPreview ? "位置/尺寸示意 · " : (thumbnail ? "修改后预览 · " : "")) + (!direct ? "可保存为副本 · " : "") + summary,
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
-                                       page: frame, actionTitle: !direct ? "另存建议副本…" : nil)
+                                       page: frame, actionTitle: !direct ? "另存建议副本…" : nil, sourceURL: source?.sourceURL)
         feedbackPanel = controls
         controls.orderFrontRegardless()
-        print("PPT_CURSOR_PHASE=提供预览")
+        print("PPT_CURSOR_PHASE=待采纳")
         print("已显示建议 · " + (shortcutLabel ?? "点击面板采纳"))
         fflush(stdout)
         trace("panel shown; shortcut " + (shortcutLabel ?? "none"))
@@ -180,7 +193,7 @@ enum StagedPreview {
         var focusGeneration = 0
         func suspendPreview(_ reason: String) {
             guard !submitted, !hidden else { return }
-            print("PPT_CURSOR_PHASE=读取")
+            print("PPT_CURSOR_PHASE=待切回")
             fflush(stdout)
             hidden = true
             focusGeneration += 1
@@ -196,8 +209,20 @@ enum StagedPreview {
         }
         defer { workspaceEvents.removeObserver(focusObserver) }
         var reading = false
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+        var nextVerification = Date.distantPast
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
             guard !submitted else { return }
+            if let retry = controlDirectory?.appendingPathComponent("retry"),
+               FileManager.default.fileExists(atPath: retry.path) { app.terminate(nil); return }
+            if consume("dismiss-preview") { actions.dismiss(); return }
+            if consume("refresh-shortcut") {
+                shortcut.disable()
+                if direct && !hidden && powerpoint.isActive {
+                    shortcutLabel = shortcut.registerPreferred(useTab: AcceptShortcut.allowsTab(editingText: baseline.editingText))
+                    controls.updateShortcut(shortcutLabel)
+                }
+            }
+            if powerpoint.isActive && consume("accept-preview") { actions.apply("菜单"); return }
             guard powerpoint.isActive else { suspendPreview("application switch"); return }
             guard NSEvent.pressedMouseButtons == 0 || (!hidden && controls.frame.contains(NSEvent.mouseLocation)) else {
                 suspendPreview("mouse down")
@@ -213,7 +238,10 @@ enum StagedPreview {
                 return
             }
             if current.frame != displayedWindow.frame { suspendPreview("window moved or resized") }
-            guard !reading else { return }
+            // Window/focus/mouse checks remain immediate. Expensive screenshot and JXA
+            // verification runs at most once a second; acceptance always checks again.
+            guard !reading, Date() >= nextVerification else { return }
+            nextVerification = Date().addingTimeInterval(1)
             let generation = focusGeneration
             reading = true
             DispatchQueue.global(qos: .userInitiated).async {
@@ -248,7 +276,7 @@ enum StagedPreview {
                         }
                         panel.orderFrontRegardless()
                         controls.orderFrontRegardless()
-                        print("PPT_CURSOR_PHASE=提供预览")
+                        print("PPT_CURSOR_PHASE=待采纳")
                         fflush(stdout)
                         trace("resumed after baseline verification")
                     }

@@ -1,0 +1,2 @@
+# Used by the native preview pipeline and offline preview tests.
+Pillow>=10.0

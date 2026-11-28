@@ -2,12 +2,22 @@ import Foundation
 
 public struct APISettings: Sendable, Encodable {
     public let model: String
+    public static let openAIBase = "https://api.openai.com/v1"
+    public let baseURL: String
     let key: String
+    public static func accepts(baseURL: String) -> Bool {
+        if baseURL == openAIBase { return true }
+        guard let url = URLComponents(string: baseURL), let host = url.host,
+              url.scheme == "https", url.user == nil, url.password == nil, url.port == nil,
+              url.query == nil, url.fragment == nil, url.path == "/compatible-mode/v1" else { return false }
+        return host.hasSuffix(".maas.aliyuncs.com") || host == "dashscope.aliyuncs.com" || host == "dashscope-intl.aliyuncs.com"
+    }
     public func selecting(model: String) -> APISettings {
-        APISettings(model: model, key: key)
+        APISettings(model: model, key: key, baseURL: baseURL)
     }
 
-    public init(model: String, key: String) {
+    public init(model: String, key: String, baseURL: String = APISettings.openAIBase) {
+        self.baseURL = baseURL
         self.model = model
         self.key = key
     }
@@ -43,7 +53,9 @@ public struct APIPredictor {
 
     public func predict(_ context: EditContext, images: [ReferenceImage] = [], currentPage: Data? = nil,
                         run: PredictionRun = PredictionRun()) throws -> Prediction {
-        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
+        let chat = settings.baseURL != APISettings.openAIBase
+        guard APISettings.accepts(baseURL: settings.baseURL), let url = URL(string: settings.baseURL + (chat ? "/chat/completions" : "/responses")) else { throw APIError("无效的 API 地址") }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
         request.setValue("Bearer " + settings.key, forHTTPHeaderField: "Authorization")
@@ -55,8 +67,17 @@ public struct APIPredictor {
         }
         let schema = try JSONSerialization.jsonObject(with: Data(contentsOf: PredictionInput.schema))
         let format: [String: Any] = ["type": "json_schema", "name": "slide_prediction", "strict": true, "schema": schema]
-        let body: [String: Any] = ["model": settings.model, "instructions": try PredictionInput.instructions(),
+        var body: [String: Any] = ["model": settings.model, "instructions": try PredictionInput.instructions(),
                                    "input": [["role": "user", "content": content]], "text": ["format": format], "store": false]
+        if chat {
+            let instructions = try PredictionInput.instructions() + "\nReturn a single JSON object matching: " + String(decoding: JSONSerialization.data(withJSONObject: schema), as: UTF8.self)
+            var parts: [[String: Any]] = [["type": "text", "text": text]]
+            for item in content.dropFirst() {
+                if let url = item["image_url"] { parts.append(["type": "image_url", "image_url": ["url": url]]) }
+            }
+            body = ["model": settings.model, "messages": [["role": "system", "content": instructions], ["role": "user", "content": parts]]]
+            if settings.model == "qwen4-max" { body["reasoning_effort"] = "low" }
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let response = ResponseResult()
@@ -77,6 +98,19 @@ public struct APIPredictor {
         response.ready.wait()
         guard let result = response.value else { throw PredictionError.missingResult }
         let responseData = try result.get()
+        if chat {
+            struct ChatReply: Decodable {
+                struct Choice: Decodable {
+                    struct Message: Decodable { let content: String }
+                    let message: Message
+                    let finish_reason: String
+                }
+                let choices: [Choice]
+            }
+            guard let choice = try JSONDecoder().decode(ChatReply.self, from: responseData).choices.first,
+                  choice.finish_reason == "stop" else { throw PredictionError.missingResult }
+            return try Prediction.read(Data(choice.message.content.utf8), for: context.current, images: images)
+        }
         guard let envelope = try? JSONDecoder().decode(ResponseEnvelope.self, from: responseData) else {
             throw PredictionError.invalidResponse
         }

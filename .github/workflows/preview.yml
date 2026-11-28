@@ -11,11 +11,11 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - run: python3 Scripts/test-staged-api.py
-      - run: python3 Scripts/test-staged-history.py
-      - run: swift test
-      - run: ./Scripts/test-prediction-cancellation.sh
-      - run: ./Scripts/test-api-prediction.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements.txt
+      - run: ./Scripts/test-offline.sh
       - run: ./Scripts/package-mac.sh
         if: startsWith(github.ref, 'refs/tags/')
       - uses: actions/upload-artifact@v4

@@ -209,8 +209,7 @@ with tempfile.TemporaryDirectory() as tmp:
             pass
     assert events == ["rendered", "shown"], events
 
-# An unchanged foreground page gets another assessment after 30 seconds,
-# and returning to it also starts a new assessment without another edit.
+# Returning to an unchanged page or waiting must not create idle API requests.
 with tempfile.TemporaryDirectory() as tmp:
     folder = Path(tmp)
     source = folder / "continuous.pptx"
@@ -229,4 +228,125 @@ with tempfile.TemporaryDirectory() as tmp:
             staging.watch_preview(source, folder / "preview", folder / "canvas")
         except StopIteration:
             pass
-    assert reviews == [1, 32, 35], reviews
+    assert reviews == [1], reviews
+print("Verified no idle or focus-switch requests on unchanged content")
+
+# A model returning empty edits gets at most two immediate attempts before the cooldown.
+source = Path(__file__).resolve().parents[1] / "Examples/Tab-Demo.pptx"
+with tempfile.TemporaryDirectory() as tmp, patch.object(staging.subprocess, "check_output", side_effect=[stationary] * 40), \
+     patch.object(staging, "predict_preview", return_value="No visible change") as review, patch.object(staging.time, "sleep"):
+    try:
+        staging.watch_preview(source, Path(tmp) / "preview", Path(tmp) / "canvas")
+    except StopIteration:
+        pass
+    assert review.call_count == 2, review.call_count
+print("Verified empty suggestions wait for the cooldown instead of spinning")
+
+# Manual retry is explicit and works without inventing a user edit.
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp)
+    page = json.dumps(dict(document=str(source), slideID=256, objects=[dict(id="shape", x=0)]))
+    def samples():
+        yield page
+        yield page
+        yield page
+        (folder / "retry").touch()
+        yield page
+        yield page
+    with patch.dict(staging.os.environ, {"PPT_CURSOR_CONTROL_DIRECTORY": tmp}), \
+         patch.object(staging.subprocess, "check_output", side_effect=samples()), \
+         patch.object(staging, "predict_preview") as review, patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, folder / "preview", folder / "canvas")
+        except StopIteration:
+            pass
+        assert review.call_count == 2
+        assert not (folder / "retry").exists()
+print("Verified explicit retry on an unchanged page")
+
+# Authentication failures wait for configuration; transient failures remain recoverable.
+for retryable, expected in ((False, 1), (True, 19)):
+    with tempfile.TemporaryDirectory() as tmp:
+        now = [0]
+        def samples():
+            for n in range(20):
+                now[0] = n * 60
+                yield stationary
+        with patch.object(staging.subprocess, "check_output", side_effect=samples()), \
+             patch.object(staging, "predict_preview", side_effect=staging.ModelServiceError("test", retryable)) as review, \
+             patch.object(staging.time, "sleep"), patch.object(staging.time, "monotonic", side_effect=lambda: now[0]):
+            try:
+                staging.watch_preview(source, Path(tmp) / "preview", Path(tmp) / "canvas")
+            except StopIteration:
+                pass
+            assert review.call_count == expected, review.call_count
+print("Verified ongoing transient recovery with capped delays and no authentication retry storm")
+
+# Fifty sequential acceptances cross the previous three-round test and eight-state history window.
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp)
+    source = folder / "rounds.pptx"
+    source.touch()
+    current = [dict(document=str(source), slideID=1, objects=[dict(id="shape", x=0)])]
+    rounds = []
+    def capture_round():
+        if len(rounds) == 51:
+            raise StopIteration()
+        return json.dumps(current[0])
+    def predict_round(baseline, selector, history_file, candidate, *args):
+        history = json.loads(history_file.read_text())
+        rounds.append(history)
+        if len(rounds) <= 50:
+            candidate.mkdir()
+            (candidate / "summary.txt").write_text(f"Move {len(rounds)}")
+    def accept_round(command):
+        current[0] = dict(current[0], objects=[dict(id="shape", x=len(rounds) * 10)])
+        (Path(command[-1]) / "accepted.json").write_text(json.dumps(current[0]))
+    with patch.object(staging.subprocess, "check_output", side_effect=lambda *a, **k: capture_round()), \
+         patch.object(staging.subprocess, "run", side_effect=accept_round), \
+         patch.object(staging, "predict_preview", side_effect=predict_round), patch.object(staging.time, "sleep"):
+        try:
+            staging.watch_preview(source, folder / "preview", folder / "canvas")
+        except StopIteration:
+            pass
+    assert [history[-1]["objects"][0]["x"] for history in rounds] == list(range(0, 501, 10))
+    assert [history[-1].get("acceptedSuggestion") for history in rounds] == [None] + [f"Move {n}" for n in range(1, 51)]
+    assert max(map(len, rounds)) == 8
+print("Verified 50 acceptances and prediction 51, with a bounded eight-state history")
+
+# Empty results do not end the session. Ten empty responses are followed by a preview.
+for mode in ("empty", "temporary", "malformed"):
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        source = folder / "recover.pptx"
+        source.touch()
+        current = dict(document=str(source), slideID=1, objects=[dict(id="shape", x=0)])
+        now, calls, shown = [0], [], []
+        def capture_recovery(*args, **kwargs):
+            now[0] += 5
+            assert now[0] < 1000, "Session failed to recover"
+            return json.dumps(current)
+        def propose_recovery(baseline, selector, history_file, candidate, *args, **kwargs):
+            calls.append(now[0])
+            if len(calls) <= 10:
+                if mode == "temporary":
+                    raise staging.ModelServiceError("offline", retryable=True)
+                if mode == "malformed":
+                    raise ValueError("invalid model response")
+                return "No visible edit"
+            candidate.mkdir()
+            (candidate / "summary.txt").write_text("Recovered")
+        def show_recovery(command):
+            shown.append(command)
+            raise StopIteration()
+        with patch.object(staging.subprocess, "check_output", side_effect=capture_recovery), \
+             patch.object(staging.subprocess, "run", side_effect=show_recovery), \
+             patch.object(staging, "predict_preview", side_effect=propose_recovery), \
+             patch.object(staging.time, "monotonic", side_effect=lambda: now[0]), patch.object(staging.time, "sleep"):
+            try:
+                staging.watch_preview(source, folder / "preview", folder / "canvas")
+            except StopIteration:
+                pass
+        assert len(calls) == 11 and len(shown) == 1, (mode, calls, shown)
+        assert now[0] >= 100, "Recovery must back off instead of spinning"
+print("Verified eventual preview after 10 empty, network-failed, or malformed responses")

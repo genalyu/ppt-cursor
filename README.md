@@ -1,101 +1,85 @@
 # PPT Cursor for Mac
 
-PPT Cursor 是一个用于 Microsoft PowerPoint 的 macOS 菜单栏应用。它读取当前页和最近几次编辑，将上下文交给所选模型推断下一步，在画布上显示建议。首次启动默认用 **Tab** 采纳对象编辑建议，已有的快捷键设置会保留。Tab 只在 PowerPoint 位于前台且有建议时启用。编辑文本期间，采纳键会切换为 ⌥⌘Return，面板会显示当前快捷键。每次写入前，应用会重新核对演示文稿、幻灯片和图形状态。
+在 PowerPoint 中预览下一步编辑，确认后用快捷键采纳。支持移动、缩放、旋转、文本和部分原生图形修改，以及素材插入。macOS 菜单栏应用，MIT 开源。
 
-## 下载 Mac 测试版
+**当前状态：预览版。** 支持 macOS 13+ 与桌面版 Microsoft PowerPoint。模型输出需要用户确认；复杂替换可能只能另存为 PPTX 副本。正式签名、公证及跨版本兼容验证尚未完成。
 
-[下载 Preview 34 · Apple Silicon ZIP](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.34/PPT-Cursor-macOS-arm64.zip) · [SHA-256 校验文件](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.34/PPT-Cursor-macOS-arm64.zip.sha256)
+## 从源码开始
 
-解压后打开 PPT Cursor。测试包需要 macOS 13 或更新版本、PowerPoint，以及已登录的 Codex CLI 或 OpenAI API 密钥。此构建使用本地临时签名，尚未通过 Apple 公证。Intel Mac 可使用下方源码构建方式。
-
-## 试一次拖动预测
-
-用 PowerPoint 打开[对齐示例](https://raw.githubusercontent.com/genalyu/ppt-cursor/main/Examples/Tab-Demo.pptx)，打开 PPT Cursor，应用自动开始预测。依次将 Research 和 Design 两个文本框各向上拖动约 2 厘米，使它们的上边缘齐平，暂时保留 Deliver 的位置。模型可能建议将 Deliver 上移到同一高度。看到预览后，按面板显示的快捷键采纳。可在启动窗口或菜单栏更改「用 Tab 采纳可见建议」。
-
-## 本地构建与运行
-
-需要 macOS 13 或更新版本、Microsoft PowerPoint 桌面版、包含 Swift 5.9 或更高版本的 Xcode Command Line Tools，以及已登录的 Codex CLI 或 OpenAI API 密钥。当前版本可从 ChatGPT 桌面应用、Homebrew 的 Apple Silicon 路径或 Intel 路径发现 Codex。
+需要 Xcode Command Line Tools（Swift 5.9+）、Python 3、Pillow、Microsoft PowerPoint 和 LibreOffice。模型可选已登录的 Codex CLI、OpenAI API 或阿里云百炼 API。
 
 ```sh
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+./Scripts/check-environment.sh
 ./Scripts/build-app.sh
 open "dist/PPT Cursor.app"
 ```
 
-1. 在 PowerPoint 普通视图中打开要编辑的页面。
-2. 在 PPT Cursor 启动窗口点击「定位画布并开始」，应用会使用屏幕读取权限自动识别页面边界。默认仅在本机处理窗口像素。在控制窗口勾选「向模型提供当前幻灯片截图」后，每次预测会重新核对页面边界，并将匹配的页面裁图提供给模型；无法确认边界时使用对象与历史数据。也可以从菜单栏重新定位。定位完成后开始预测。
-3. 按系统提示允许自动化 PowerPoint。移动或调整几个图形，使编辑意图逐渐明确。
-4. 看到青色轮廓时，按面板显示的快捷键、点击页面边缘的「采纳」，或从菜单选择「采纳当前建议」。继续编辑会清除旧建议。「暂停预测」会停止读取新状态。模型请求失败后，可在菜单中选择「重试上次预测」。应用会重新读取当前页，确认编辑状态仍然匹配后再请求模型。
-5. 拖动同一个 PowerPoint 窗口时，预览跟随窗口移动。改变窗口大小、切换到另一个演示文稿窗口或调整页面缩放后，请重新定位画布。
+从 Finder 启动本地 `dist` 中的源码构建时，会优先查找项目的 `.venv`；也会检查 PATH、Homebrew 和常见 Python 安装位置。将应用移至其他目录后，请确保常见安装位置中存在带 Pillow 的 Python。无需为几何预览启动 LibreOffice，但完整渲染及截图输入仍需要它，应用会在启动时检查安装。
 
-### 发布者签名和公证
+[历史预览包](https://github.com/genalyu/ppt-cursor/releases)不一定包含当前源码的修复。测试包使用临时签名，尚未 Apple 公证。
 
-发布者可将 `PPT_CURSOR_SIGN_IDENTITY` 设为钥匙串中的 Developer ID Application 证书名，将 `PPT_CURSOR_NOTARY_PROFILE` 设为已配置的 notarytool 钥匙串配置名，然后运行 `./Scripts/package-mac.sh`。脚本会签名、提交公证、将票据附加到应用，并解压最终 ZIP 检查票据。默认本地构建使用临时签名。
+## 使用流程
 
-发布正式版时，使 GitHub 上的版本标签（如 `v0.1.0`）与应用版本及当前提交一致。在已登录 GitHub CLI、装有完整 Xcode 的发布机上，配置上述两项钥匙串设置后运行 `./Scripts/publish-mac.sh`。脚本执行测试和公证打包，将 ZIP 和校验文件上传至 GitHub 草稿，上传成功后公开发布。
+1. 在 PowerPoint 普通视图打开并保存一个本地 `.pptx`。可先使用仓库中的 `Examples/Tab-Demo.pptx` 副本。
+2. 打开 PPT Cursor 的控制窗口，在「模型连接…」选择服务商、填写模型和密钥。密钥保存在此 Mac 的钥匙串，重启后保留；切换到 Codex CLI 不会删除钥匙串中的 API 密钥。
+3. 点击「开始预测」，然后切回 PowerPoint。已有连接或曾启动过会话的用户，后续启动应用会自动等候文稿。macOS 可能提示允许应用自动化控制 PowerPoint。
+4. 编辑并松开鼠标，查看建议。对象编辑时默认按 **Tab** 采纳；编辑文本时使用 **⌥⌘Return**。快捷键冲突时以面板提示为准，也可点击「采纳」或使用菜单。所有写入前都会再次核对文稿与页面状态。
+5. 「忽略」关闭本条建议并继续寻找其他建议。「暂停预测」停止会话和快捷键。「重新预测」主动重试当前页。采纳成功后会继续生成下一条建议，没有次数上限。
 
-## 选择模型连接
+顶部状态栏随实际工作切换：读取、预测、搜素材、生成预览、待采纳、写入、待切回、待文稿、等待重试、待保存、待编辑、已暂停和连接异常。处理中的阶段显示已用秒数。控制窗口显示连接、当前文件和状态。菜单中的采纳、忽略与重新预测控制同一会话。
 
-默认使用本机 Codex 登录。也可从控制窗口点击「模型连接…」，填写支持图像输入及结构化输出的 OpenAI 模型名称和 API 密钥，再选择「使用 API」。此模式通过 Responses API 预测，按该 API 账户的用量计费。密钥只在本次运行的内存中使用。退出应用后恢复默认连接。
+## 预览与速度
 
-## 数据与当前支持范围
+- 纯移动、缩放、旋转使用**位置/尺寸示意**，直接生成目标轮廓，不启动 LibreOffice。能定位画布时叠在原页上，否则显示带有明确说明的几何缩略图；它不模拟文字或图片的最终外观。
+- 文本、颜色、新图形等修改通过 LibreOffice 渲染临时 PPTX，再显示变化。LibreOffice 与 PowerPoint 的字体和主题渲染可能存在差异。
+- 原位叠加依赖屏幕录制权限和可识别的页面边界。缺少权限或边界不确定时自动使用缩略图，不阻塞采纳。切换应用会隐藏预览并释放快捷键，返回后先核对当前页。
+- 空/不可见建议先补试一次，随后按 15、30、60 秒间隔继续寻找建议；网络、限流或模型格式错误也会持续间隔重试，最长间隔 60 秒。切到后台会等待返回，暂停会停止请求。持续预测会产生后续 API 调用；鉴权/权限错误仍需要修正连接。
+- 状态中分别报告模型响应、预览生成耗时；模型速度取决于服务商、模型和上下文。开启截图会增加渲染与传输时间。
 
-开始预测后，幻灯片中的文字、图形名称、位置、尺寸、文稿标识及同页最近几次状态会发送给所选连接的模型服务。打开应用后自动等候本地 PPTX，读到当前文稿后开始预测。实时状态保存在内存，推断请求使用临时目录。
+## 自动素材搜索
 
-临时翻页时，应用在本机保留最近离开的三页编辑历史。返回内容未变的页面后，新的编辑可以延续该页此前的操作。切换文稿会清空缓存。
+无需先上传图片。模型认为照片、插图等有助于当前页面时，会提出通用搜索关键词；应用搜索 Wikimedia Commons，下载最多 3 张公有领域／CC0 图片，再让模型选择图片与位置，生成可采纳的预览。用户上传的图片仍是额外参考，可与网络素材一起使用。
 
-预测上下文包含当前页原生表格的总行列数和左上角最多 8 行 × 8 列的文字，每格最多 512 个字符。合并标题的延续位置会标记出来。
+不需要额外搜索 API 密钥。预览提供「素材来源」链接，图片替代文字保留来源及许可信息。搜索不可用或没有合适图片时，继续尝试普通编辑建议。搜索会增加网络请求和一次模型调用；当前内置来源限于 Commons，无法保证每个主题都有合适图片。
 
-模型可以建议移动、缩放、旋转、修改文字、调整统一字号或更改已有纯色填充，也可以在指定位置创建可编辑的原生对象副本，为副本设置新文字。模型可生成独立 SVG 素材，预览后通过 PowerPoint 原生粘贴插入为可移动、缩放的图片。生成的 SVG 以矢量格式嵌入 PPTX，放大后仍保留路径细节。页面边界可核实时，移动或缩放未旋转、无遮挡的图片会在目标位置显示半透明原图。其他原生对象显示轮廓与文字位置，字体与主题效果以 PowerPoint 为准。应用由构建脚本在本地临时签名。
+实现依据：[Commons 素材使用说明](https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia)、[MediaWiki 图片信息 API](https://www.mediawiki.org/wiki/API:Imageinfo)。
 
-## 验证记录
+## 数据与模型
 
-在 Mac 版 PowerPoint 的三卡片测试文稿中，将前两张卡片的纵坐标从 220 改到 112 后，真实模型建议第三张上移 108 点。应用显示预览后，测试程序投递 macOS Carbon 快捷键事件，随后从 PowerPoint 读回三个对象的纵坐标均为 112。该项覆盖应用收到快捷键事件后的采纳和写入流程。另一次在 Mac PowerPoint 的实测中，重新显示此前根据拖动历史生成的建议后，预览进程收到了 Tab 事件并生成采纳记录。从 PowerPoint 读回的 Deliver 纵坐标由 200 变为 112.195 点，与 Research 和 Design 一致。
+开始后，当前页文字、对象名称/位置/尺寸及同页最近最多 8 个内容状态会提供给所选模型。同一文稿最近离开的 3 页历史在本机会话中缓存。文稿路径不会加入 Python 预测请求；纯选区变化不会占用新的内容历史记录。
 
-锁定宽高比的图片已验证可按预览分别写入宽度和高度。测试从 192 × 96 调整到 180 × 80，再恢复到 192 × 96，两次都读回目标尺寸并保留原来的锁定状态。
+已采纳的 PPTX 副本与最近状态还会存入本机 `~/Library/Caches/io.github.genalyu.pptcursor/accepted`，用于暂停或重启后继续处理尚未保存的新对象；最多保留 12 页，超过 7 天失效。恢复时会核对源文件版本及对象结构，不会自动保存你的原稿。
 
-## 试用原生图形预测
+默认不发送整页截图。勾选「向模型提供当前幻灯片截图」后，会提供渲染的当前页。选择图片素材后，模型会收到素材名和缩略图。自动搜索时，模型生成的关键词会发送给 Wikimedia Commons；下载的候选图片、来源信息及缩略图会提供给所选模型。提示词要求使用通用关键词并避开敏感名称，但关键词仍由模型生成。所有模型内容按所选服务商的政策处理，API 用量按其账户计费。
 
-在 PowerPoint 打开本地 PPTX，然后打开 PPT Cursor，应用自动开始预测。应用会读取当前文稿的文件位置并直接开始，菜单栏的「为其他文稿启动预测…」可手动选择。原位叠加预览需要 macOS 屏幕录制权限和可识别的页面边界。无法读取或定位窗口时，应用在 PowerPoint 窗口右下方显示修改后的整页缩略图，仍可按提示的快捷键采纳。仅定位时，窗口像素在本机处理。应用会切回 PowerPoint，在控制窗口显示会话状态。可在菜单栏选择「停止开放式预测」。启动开放式会话前勾选「向模型提供当前幻灯片截图」，模型还会收到由 LibreOffice 渲染的当前页图像。可直接写回的建议会显示采纳按钮和可用快捷键。遇到复杂图形建议，可点击「另存建议副本…」保留可编辑的 PPTX。此模式需要 LibreOffice 和安装了 Pillow 的 Python 3。Preview 29 支持已登录的 Codex CLI 和 OpenAI API。使用 API 时，先在「模型连接…」选择模型并填写密钥，再启动开放式会话。也可以直接运行包内脚本：
+百炼使用 Chat Completions，OpenAI 使用 Responses。百炼北京默认地址为 `https://dashscope.aliyuncs.com/compatible-mode/v1`，可填写受支持的百炼地域/业务空间地址。模型必须具有对应账户的访问权限；含图片的请求需要模型支持图像输入。连接失败时请检查模型名称、地域、密钥、额度和网络。
 
-```sh
-python3 "/Applications/PPT Cursor.app/Contents/Resources/stage-drawing.py" session "/path/to/slides.pptx"
-```
+## 排障
 
-### 从源码启动
+| 现象 | 处理 |
+| --- | --- |
+| 找不到 Python / Pillow / LibreOffice | 运行 `Scripts/check-environment.sh`；激活虚拟环境后重新构建 |
+| 一直等候文稿 | 打开本地 PPTX、保存，并切回 PowerPoint 普通视图 |
+| 对象尚未同步到文件 | 保存 PPTX，应用会继续；不会替你保存原稿 |
+| 只有缩略图 | 检查系统屏幕录制权限；非纯色边缘、缩放或布局可能无法自动定位 |
+| Tab 没反应 | 先确认建议可见且 PowerPoint 在前台，按面板显示的键或点击采纳 |
+| 重建后密钥无法读取 | 临时签名变化可能触发钥匙串授权；打开模型连接，完成系统授权或重新填写密钥。启动窗口不会等待密码弹窗 |
+| API 失败 | 修正「模型连接…」，点击「重新预测」；不要把密钥贴进 issue |
+| 暂无新建议 | 继续编辑，或主动点击「重新预测」 |
 
-在 PowerPoint 中打开本地 PPTX，从仓库运行下列命令。需要 Swift、已登录的 Codex CLI、LibreOffice，以及安装了 Pillow 的 Python 3。源码版在缺少 Poppler 时使用 macOS 自带的 `sips` 渲染预览。
+## 开发与发布
 
-```sh
-python3 Scripts/stage-drawing.py session Examples/Tab-Demo.pptx
-```
-
-切回 PowerPoint 后移动图形。连续编辑稳定后，模型会结合当前页与历史生成 DrawingML，应用在临时副本中渲染差异。画布面板会显示建议及可用的采纳方式。支持写回位置、尺寸、旋转、单段文字、明确设置的统一字号、RGB 纯色填充，以及能从已有对象复制得到的原生图形。Preview 27 还可将新生成的原生形状直接插入当前页，保留可编辑的几何形状和填充。Preview 30 支持在现有自选图形上直接更换预设形状，例如把带文字的燕尾箭头改成菱形。Preview 33 可以在更换形状时同时调整位置、大小和旋转，也可以一次插入由多个原生形状组成的组合素材，采纳后可在 PowerPoint 中整体移动或取消组合。其他复杂替换建议可另存为副本。可追加 `--reference 图片路径` 提供参考素材。Preview 28 的开放式预测可以选择素材本身，按原始宽高比放进模型建议的位置。采纳后可在 PowerPoint 中移动、缩放或裁剪这张图片。图片按 PNG 像素嵌入，保留透明度。按 Control-C 结束监听。
-
-## 开发验证
-
-```sh
-swift build
-./Scripts/test-history.sh
-./Scripts/test-api-prediction.sh
-swift run ppt-inspect
-swift run ppt-inspect predict before.json intermediate.json current.json > suggestion.json
-swift run ppt-preview current.json suggestion.json preview.png
-swift run ppt-inspect render Examples/Tab-Demo.pptx 1 slide.png
-swift run ppt-preview --page slide.png current.json suggestion.json preview.png
-```
-
-`ppt-inspect` 从当前 PowerPoint 编辑页读取 JSON。开发样本应使用自己的测试文稿。请勿将私有幻灯片内容提交到公开仓库。
-
-MIT License
-
-### 提供已有图片
-
-从菜单中选择「选择本次编辑的图片素材…」即可载入 PNG、JPEG、HEIC、TIFF 或自包含 SVG，可一次选择多张。预测时，模型会看到所选素材的文件名和缩略图；模型选择某张图片后，画布预览和最终插入均使用同一份本地像素数据。位图保留方向和透明度，长边最多 3072 像素。支持的 SVG 在预览和插入时使用原始矢量文件。可在菜单中随时清空素材。
-
-带素材的预测也可通过命令行复现。每个 `--image` 对应一张图片，后续 JSON 文件按编辑时间排序。
+参见 [贡献指南](CONTRIBUTING.md) 和 [安全与数据说明](SECURITY.md)。CI 覆盖 Swift 核心、API 请求、历史、取消和快速预览测试；实际 PowerPoint 与实体快捷键仍需桌面验证。
 
 ```sh
-swift run ppt-inspect predict --image swatch.png current.json
+./Scripts/test-offline.sh
+# 额外执行真实 LibreOffice 性能对比
+python3 Scripts/test-fast-preview.py --benchmark
 ```
 
-临时离开 PowerPoint 时，应用会隐藏预览并释放快捷键。返回同一页后会核对内容，再恢复仍然有效的建议。命令行启动时可以传入 `--start-editing` 直接定位当前页，或用 `--verbose` 将状态与建议输出到终端。
+`Scripts/package-mac.sh` 生成 ZIP 和 SHA-256。发布者可配置 `PPT_CURSOR_SIGN_IDENTITY` 与 `PPT_CURSOR_NOTARY_PROFILE` 完成 Developer ID 签名、公证。`Scripts/publish-mac.sh` 会发布 GitHub release，仅在准备好公开发布时执行。
+
+MIT License · [源代码](https://github.com/genalyu/ppt-cursor)

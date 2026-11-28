@@ -39,6 +39,19 @@ class StagedAPITests(unittest.TestCase):
         self.assertEqual([item["image_url"] for item in content[1:]],
                          ["data:image/png;base64,cA==", "data:image/png;base64,bA=="])
 
+    def test_bailian_request(self):
+        settings = {"model": "qwen4-max", "key": "test",
+                    "baseURL": "https://example.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"}
+        self.response.read.return_value = b'{"choices":[{"finish_reason":"stop","message":{"content":"{}"}}]}'
+        api_proposal(settings, "instructions", "history", [], {"type": "object"})
+        args, options = self.connection.request.call_args
+        self.assertEqual(args, ("POST", "/compatible-mode/v1/chat/completions"))
+        self.assertEqual(json.loads(options["body"])["reasoning_effort"], "low")
+        self.assertEqual(options["headers"]["Authorization"], "Bearer test")
+        settings["baseURL"] = "https://unrelated.example/compatible-mode/v1"
+        with self.assertRaises(ValueError):
+            api_proposal(settings, "instructions", "history", [], {})
+
     def test_invalid_response_is_recoverable(self):
         for raw in ("garbled", '{"status":"incomplete"}', '{"status":"completed","output":null}',
                     '{"status":"completed","output":[null,{"content":[{"type":"output_text"}]}]}'):

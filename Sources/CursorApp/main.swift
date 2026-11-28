@@ -7,7 +7,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab)
+    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint))
     private var documentLookup: UUID?
     private var awaitingDocument = false
     private var followsActiveDocument = true
@@ -21,6 +21,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var overlay: NSPanel?
     private var suggestionPanel: SuggestionPanel?
     private var api: APISettings?
+    private var modelLookup: UUID?
     private var images: [ReferenceImage] = []
     private var predictWithImportedImages = false
     private var imageImport: Task<Void, Never>?
@@ -34,7 +35,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var hiddenSuggestion: (SlideSnapshot, Prediction)?
     private let retryItem = NSMenuItem(title: "重试上次预测", action: #selector(retryPrediction), keyEquivalent: "")
     private var failedContext: EditContext? {
-        didSet { retryItem.isHidden = failedContext == nil }
+        didSet { retryItem.isHidden = failedContext == nil && nativeProcess == nil }
     }
     private var waiting: EditContext?
     private var pending: (SlideSnapshot, Prediction)?
@@ -50,9 +51,9 @@ final class Controller: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(status)
         menu.addItem(.separator())
-        for (title, action) in [("定位幻灯片画布…", #selector(startEditing)), ("采纳当前建议", #selector(accept)),
+        for (title, action) in [("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
-                                ("清空图片素材", #selector(clearImages)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("停止开放式预测", #selector(stopNativeSession)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("清空图片素材", #selector(clearImages)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -68,7 +69,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         settings.target = self
         item.menu = menu
         setPhase(.read)
-        if CommandLine.arguments.contains("--start-editing") { startEditing() } else { awaitCurrentDocument() }
+        openSetup()
+        restoreModelConnection()
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in self?.poll() }
         observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                                      object: nil, queue: .main) { [weak self] _ in
@@ -88,10 +90,35 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func restoreModelConnection() {
+        let request = UUID()
+        modelLookup = request
+        message("正在读取已保存的模型连接…")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let restored = ModelSettings.restore()
+            DispatchQueue.main.async {
+                guard self.modelLookup == request else { return }
+                self.modelLookup = nil
+                self.api = restored
+                self.updateSessionControls()
+                if restored == nil && ModelSettings.hasSavedConnection {
+                    self.setPhase(.error)
+                    self.message("模型密钥需要钥匙串授权，请打开模型连接并重新保存连接")
+                } else if CommandLine.arguments.contains("--start-editing") {
+                    self.startEditing()
+                } else if restored != nil || UserDefaults.standard.bool(forKey: "hasStartedSession") {
+                    self.awaitCurrentDocument()
+                } else { self.setPhase(.paused); self.message("配置模型后点击开始预测") }
+            }
+        }
+    }
+
     private func awaitCurrentDocument() {
         guard !awaitingDocument else { return }
         followsActiveDocument = true
         awaitingDocument = true
+        setPhase(.document)
+        updateSessionControls()
         checkForDocument()
     }
 
@@ -134,6 +161,8 @@ final class Controller: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.checkForDocument() }
                 case .failure(let error):
                     self.awaitingDocument = false
+                    self.setPhase(.error)
+                    self.updateSessionControls()
                     self.message(error.localizedDescription)
                 }
             }
@@ -152,9 +181,16 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func startNativeSession(_ document: URL) {
+        defer { updateSessionControls() }
         setPhase(.read)
         awaitingDocument = false
+        guard api != nil || !ModelSettings.hasSavedConnection else {
+            setPhase(.error)
+            message("模型密钥尚未解锁，请在模型连接中完成钥匙串授权")
+            return
+        }
         guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py") else {
+            setPhase(.error)
             message("请从打包的 PPT Cursor 应用启动开放式会话")
             return
         }
@@ -181,6 +217,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 process.arguments?.append("--api-stdin")
             }
             process.environment?["TMPDIR"] = session.path
+            process.environment?["PPT_CURSOR_CONTROL_DIRECTORY"] = session.path
             let output = Pipe()
             process.standardOutput = output
             process.standardError = output
@@ -189,6 +226,8 @@ final class Controller: NSObject, NSApplicationDelegate {
             nativeDocument = document
             nativeProcess = process
             nativeDirectory = session
+            UserDefaults.standard.set(true, forKey: "hasStartedSession")
+            updateSessionControls()
             DispatchQueue.global(qos: .utility).async {
                 var pending = Data()
                 var lastLine = ""
@@ -200,7 +239,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
                         if status.hasPrefix("PPT_CURSOR_PHASE="),
-                           let next = Phase(rawValue: String(status.dropFirst("PPT_CURSOR_PHASE=".count))) {
+                           let next = Phase(event: String(status.dropFirst("PPT_CURSOR_PHASE=".count))) {
                             self.setPhase(next)
                             return
                         }
@@ -228,14 +267,17 @@ final class Controller: NSObject, NSApplicationDelegate {
                     guard self.nativeProcess === process else { return }
                     self.nativeProcess = nil
                     self.nativeDirectory = nil
-                    self.setPhase(.read)
+                    self.nativeDocument = nil
+                    self.updateSessionControls()
+                    self.setPhase(process.terminationStatus == 0 ? .paused : .error)
                     self.message(finalStatus)
                 }
             }
-            setup.orderOut(nil)
+            returnToPowerPoint()
             message("正在为“" + document.lastPathComponent + "”启动开放式预测…")
         } catch {
             try? FileManager.default.removeItem(at: session)
+            setPhase(.error)
             message(error.localizedDescription)
             return
         }
@@ -245,23 +287,49 @@ final class Controller: NSObject, NSApplicationDelegate {
         awaitingDocument = false
         nativeDocument = nil
         documentLookup = nil
-        guard let process = nativeProcess else { return }
+        setPhase(.paused)
+        guard let process = nativeProcess else { updateSessionControls(); message("已暂停，点击开始预测即可继续"); return }
         NativeSessionLauncher.stop(process)
         nativeProcess = nil
-        if let nativeDirectory { try? FileManager.default.removeItem(at: nativeDirectory) }
+        // The output reader removes the directory once the process has actually exited.
         nativeDirectory = nil
-        setPhase(.read)
+        updateSessionControls()
+        setPhase(.paused)
         message("开放式预测已停止")
     }
 
+    private func updateSessionControls() {
+        let active = nativeProcess != nil || awaitingDocument || documentLookup != nil || monitoring
+        toggle.title = active ? "暂停预测" : "开始预测"
+        setup.setRunning(active, canRetry: nativeProcess != nil || failedContext != nil, model: api?.model ?? (ModelSettings.hasSavedConnection ? "模型密钥待授权" : "Codex CLI"), document: nativeDocument?.lastPathComponent)
+        retryItem.isHidden = nativeProcess == nil && failedContext == nil
+        retryItem.title = nativeProcess != nil ? "重新预测当前页" : "重试上次预测"
+    }
+
+    private func sendSessionCommand(_ command: String) {
+        guard let directory = nativeDirectory else { return }
+        do { try Data().write(to: directory.appendingPathComponent(command), options: .atomic) }
+        catch { message("操作未发送：" + error.localizedDescription) }
+    }
+
+    @objc private func returnToPowerPoint() {
+        guard let powerpoint = NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first else {
+            message("请先在 PowerPoint 中打开本地 PPTX")
+            return
+        }
+        setup.orderOut(nil)
+        powerpoint.activate(options: [.activateIgnoringOtherApps])
+    }
+
     @objc private func openSetup() {
+        updateSessionControls()
         setup.update(status.title)
         NSApp.activate(ignoringOtherApps: true)
         setup.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if nativeProcess == nil && !monitoring { awaitCurrentDocument() } else { openSetup() }
+        openSetup()
         return true
     }
 
@@ -270,18 +338,20 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
     }
-    private enum Phase: String {
-        case read = "读取"
-        case preview = "提供预览"
-        case apply = "操作"
+    private typealias Phase = SessionPhase
+    private var phase: Phase = .paused
+    private var phaseStarted = Date()
+
+    private func refreshStatusTitle() {
+        item.button?.title = phase.title(elapsed: Date().timeIntervalSince(phaseStarted))
+        item.button?.imagePosition = .imageLeading
     }
 
-    private var phase: Phase = .read
-
     private func setPhase(_ next: Phase) {
+        guard next != phase else { refreshStatusTitle(); return }
         phase = next
-        item.button?.title = next.rawValue
-        item.button?.imagePosition = .imageLeading
+        phaseStarted = Date()
+        refreshStatusTitle()
         status.title = next.rawValue
         setup.update(next.rawValue)
         item.button?.toolTip = next.rawValue
@@ -327,9 +397,11 @@ final class Controller: NSObject, NSApplicationDelegate {
             invalidate()
             if frontmost { show(state, proposal) } else { hiddenSuggestion = (state, proposal) }
         }
+        if nativeProcess != nil { sendSessionCommand("refresh-shortcut") }
     }
 
     @objc private func dismiss() {
+        if nativeProcess != nil { sendSessionCommand("dismiss-preview"); return }
         if let (state, suggestion) = pending ?? hiddenSuggestion {
             history.recordDismissal(suggestion.summary, on: state)
         }
@@ -338,8 +410,9 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
-        documentLookup = nil
-        if nativeProcess != nil { stopNativeSession() }
+        guard modelLookup == nil else { message("正在读取模型连接，请稍候"); return }
+        if nativeProcess != nil || awaitingDocument || documentLookup != nil { stopNativeSession(); return }
+        if !monitoring && locationRequest == nil { awaitCurrentDocument(); return }
         if locationRequest != nil {
             locationRequest = nil
             monitoring = false
@@ -358,6 +431,12 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func retryPrediction() {
+        if nativeProcess != nil {
+            sendSessionCommand("retry")
+            message("已请求重新预测，切回 PowerPoint 后继续")
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
+            return
+        }
         guard monitoring, let context = failedContext else { return }
         failedContext = nil
         waiting = context
@@ -368,6 +447,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func chooseModel() {
         guard let choice = ModelSettings.choose(current: api) else { return }
+        modelLookup = nil
         let interrupted = waiting ?? inFlightContext ?? failedContext
         invalidate()
         waiting = interrupted
@@ -376,6 +456,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
         }
         refreshNativeSettings()
+        updateSessionControls()
         if monitoring, interrupted != nil {
             message("模型连接已更新，正在重新核对幻灯片…")
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
@@ -526,6 +607,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func poll() {
+        refreshStatusTitle()
         followPowerPointDocument()
         guard monitoring, frontmost, !reading, !applying else { return }
         // A held drag may pause between mouse movements. Sample the committed slide after release.
@@ -615,6 +697,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     private func startPrediction() {
         guard imageImport == nil, inference == nil, let context = waiting else { return }
+        setPhase(.predict)
         waiting = nil
         let references = images
         var currentPage: Data?
@@ -695,6 +778,11 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func accept() {
+        if nativeProcess != nil {
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
+            sendSessionCommand("accept-preview")
+            return
+        }
         guard frontmost, !editingWithPointer, !applying, let (state, proposal) = pending else { return }
         guard let expectedWindow = calibratedWindow,
               let powerpoint = NSWorkspace.shared.frontmostApplication,
@@ -754,6 +842,18 @@ if CommandLine.arguments.dropFirst().elementsEqual(["--check-powerpoint"]) {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         exit(1)
     }
+}
+
+if CommandLine.arguments.dropFirst().elementsEqual(["--configure-bailian"]) {
+    let key = String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { exit(1) }
+    _ = try ModelSettings.save(base: ModelSettings.beijing, model: "qwen4-max", key: key)
+    exit(0)
+}
+if CommandLine.arguments.dropFirst().elementsEqual(["--check-model"]) {
+    guard let settings = ModelSettings.restore() else { print("Codex CLI"); exit(1) }
+    print(settings.model, settings.baseURL)
+    exit(0)
 }
 
 let application = NSApplication.shared
