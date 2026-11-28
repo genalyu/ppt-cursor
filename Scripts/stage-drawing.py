@@ -144,7 +144,12 @@ def model_shapes(tree, current):
 
 def text_edit_fields(template, target):
     """Advertise only edits the existing native writer can preserve exactly."""
-    shape = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{template}</root>')[0]
+    try:
+        shape = ElementTree.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{template}</root>')[0]
+    except ElementTree.ParseError:
+        # Shapes may inherit Office extension/relationship prefixes from the slide.
+        # Leave these on the existing full-fragment path instead of failing the page.
+        return []
     paragraphs = shape.findall(f"{{{P}}}txBody/{{{A}}}p")
     simple = all(child.tag in {f"{{{A}}}r", f"{{{A}}}pPr", f"{{{A}}}endParaRPr"}
                  for paragraph in paragraphs for child in paragraph)

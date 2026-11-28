@@ -118,6 +118,16 @@ class TextEditTests(unittest.TestCase):
         acceptance = staging.native_acceptance(tree, proposal["replaceID"], drawing, state, "Resize")
         self.assertEqual(acceptance["edits"][0]["fontSize"], 28)
 
+    def test_office_extension_does_not_break_other_shapes(self):
+        shapes = self.tree.getElementsByTagNameNS(P, "sp")
+        properties = shapes[0].getElementsByTagNameNS(A, "rPr")[0]
+        hyperlink = self.tree.ownerDocument.createElementNS(A, "a:hlinkClick")
+        hyperlink.setAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r:id", "rId1")
+        properties.appendChild(hyperlink)
+        catalog = staging.model_shapes(self.tree, self.state)
+        self.assertEqual(catalog[0]["textEditFields"], [])
+        self.assertEqual(catalog[1]["textEditFields"], ["text", "fontSize"])
+
     def test_prediction_pipeline_expands_before_native_validation(self):
         history = self.folder / "history.json"
         history.write_text(json.dumps([self.state]))
