@@ -26,7 +26,7 @@ final class SetupWindow: NSWindow {
     let tabOption = NSButton(checkboxWithTitle: "用 Tab 采纳可见建议", target: nil, action: nil)
     let includePage = NSButton(checkboxWithTitle: "向模型提供当前幻灯片截图", target: nil, action: nil)
 
-    init(owner: NSObject, includePageChanged: Selector, chooseImages: Selector, modelSettings: Selector, toggleTab: Selector, prefersTab: Bool, toggleSession: Selector, retry: Selector, returnToEditor: Selector, accept: Selector, dismiss: Selector, submitInstruction: Selector) {
+    init(owner: NSObject, includePageChanged: Selector, chooseImages: Selector, modelSettings: Selector, toggleTab: Selector, prefersTab: Bool, toggleSession: Selector, retry: Selector, returnToEditor: Selector, accept: Selector, dismiss: Selector, submitInstruction: Selector, environmentCheck: Selector) {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 560, height: 510),
                    styleMask: [.titled, .closable], backing: .buffered, defer: false)
         title = "PPT Cursor"
@@ -71,7 +71,8 @@ final class SetupWindow: NSWindow {
         let privacy = NSTextField(wrappingLabelWithString: "开始后，当前页与最近编辑会发送给模型；需要素材时自动联网搜索公开图片，你提供的图片是可选补充。截图默认关闭，密钥存于钥匙串。")
         privacy.font = .systemFont(ofSize: 11)
         privacy.textColor = .secondaryLabelColor
-        let options = NSStackView(views: [assets, settings])
+        let diagnostics = NSButton(title: "环境检查…", target: owner, action: environmentCheck)
+        let options = NSStackView(views: [assets, settings, diagnostics])
         state.textColor = .secondaryLabelColor
         state.font = .systemFont(ofSize: 12)
         phaseLabel.font = .monospacedDigitSystemFont(ofSize: 18, weight: .semibold)

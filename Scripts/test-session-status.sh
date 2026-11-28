@@ -16,6 +16,10 @@ precondition(SessionPhase.search.title(elapsed: 3) == "搜素材 3s")
 precondition(SessionPhase.paused.title(elapsed: 400) == "已暂停")
 precondition(SessionPhase.preview.title(elapsed: 100) == "待采纳")
 precondition(SessionPhase.authorizing.title(elapsed: 100) == "等待授权")
+precondition(SessionPhase.workerExit(1, detail: "找不到装有 Pillow 的 Python 3 环境") == .environment)
+precondition(SessionPhase.workerExit(1, detail: "HTTP 401 invalid API key") == .error)
+precondition(SessionPhase.workerExit(3, detail: "page changed") == .cancelled)
+precondition(SessionPhase.workerExit(0, detail: "") == .paused)
 print("Session phases, worker compatibility and elapsed-time labels passed")
 SWIFT
 swiftc Sources/CursorApp/SessionPhase.swift "$tmp/main.swift" -o "$tmp/check"

@@ -15,6 +15,7 @@ enum SessionPhase: String, CaseIterable {
     case ready = "待编辑"
     case paused = "已暂停"
     case error = "连接异常"
+    case environment = "环境未就绪"
     case authorizing = "等待授权"
     case cancelled = "要求已取消"
     case failed = "操作失败"
@@ -27,6 +28,13 @@ enum SessionPhase: String, CaseIterable {
             guard let phase = Self(rawValue: event) else { return nil }
             self = phase
         }
+    }
+
+    static func workerExit(_ code: Int32, detail: String) -> SessionPhase {
+        if code == 0 { return .paused }
+        if code == 3 { return .cancelled }
+        let missing = ["找不到 LibreOffice", "找不到装有 Pillow", "缺少 Pillow", "找不到 osascript", "找不到 swift", "No module named 'PIL'"]
+        return missing.contains(where: detail.contains) ? .environment : .error
     }
 
     var explanation: String {
@@ -43,6 +51,7 @@ enum SessionPhase: String, CaseIterable {
         case .save: return "请保存当前文稿，保存后自动继续。"
         case .ready: return "继续编辑，AI 会跟随你的改动。"
         case .paused: return "点击开始预测，继续与 AI 协作。"
+        case .environment: return "点击环境检查，查看缺少的本机组件与安装步骤。"
         case .error: return "请检查模型连接，修正后重新预测。"
         case .authorizing: return "请处理 macOS 钥匙串授权弹窗；取消系统授权后可重新配置。窗口仍可正常操作。"
         case .cancelled: return "文稿或页面已变化，请在目标页重新提交修改要求。"

@@ -35,6 +35,8 @@ Complex replacements may require saving a suggested copy. The floating preview s
 
 Unzip and open `PPT Cursor.app`. PowerPoint, Python 3 with Pillow and LibreOffice are still required locally. Configure the model in the app. Intel Mac users currently need a source build. This package passed CI tests and packaging checks; it is not Apple-notarized.
 
+Use **环境检查… (Environment Check)** in the app or menu to find missing local dependencies without reading the Keychain. The copyable summary excludes credentials, slide contents and full local paths. Installation checks do not verify model login or network access. [Troubleshooting guide](docs/USER-GUIDE.zh-CN.md#环境检查).
+
 ## Build and run
 
 Install Xcode Command Line Tools (Swift 5.9+), Python 3, PowerPoint and LibreOffice, then:

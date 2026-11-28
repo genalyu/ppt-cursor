@@ -19,6 +19,7 @@ python3 Scripts/test-render-workspace.py
 python3 Scripts/test-checkpoints.py
 python3 Scripts/test-web-assets.py
 ./Scripts/test-session-status.sh
+./Scripts/test-environment.sh
 ./Scripts/test-model-connection.sh
 ./Scripts/test-preview-placement.sh
 ./Scripts/test-document-follow.sh

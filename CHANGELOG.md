@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0 preview — build 45
+
+- Add an in-app environment check with actionable dependency results, refresh, usage-guide links and a copyable summary that omits credentials, document contents and full local paths.
+- Share the launcher's Python search path, skip interpreters without Pillow and bound diagnostic probes. Check packaged resources and distinguish local installation readiness from model login/network readiness.
+- Provide `--check-environment` and `--show-environment-check` without initializing the model controller or reading the Keychain. The source check script delegates to the built app when available.
+- Show missing-dependency exits as “环境未就绪” instead of a generic connection error; explain how to reuse an existing key without entering it again.
+- Add regression coverage for Python fallback, paths containing spaces, missing dependencies, diagnostic privacy, probe timeout and worker error classification.
+
 ## 0.1.0 preview — build 44
 
 - Add compact, validated shape-insertion instructions for text labels, arrows, rectangles, rounded rectangles, ellipses and chevrons. The app generates editable native DrawingML, retaining the full-fragment path for designs needing other styles.

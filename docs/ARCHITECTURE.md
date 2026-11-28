@@ -25,6 +25,7 @@ flowchart LR
 | Component | Responsibility |
 | --- | --- |
 | `Sources/CursorApp/main.swift` | App lifecycle, session process, model configuration, user commands and phase feedback |
+| `EnvironmentDiagnostics.swift` / `EnvironmentWindow.swift` | Local dependency checks with bounded Python probes, actionable results and a path-redacted summary; no Keychain access |
 | `SessionPhase.swift` | Shared worker event vocabulary, elapsed labels and explanations |
 | `DocumentFollowPolicy.swift` | Reject stale document observations and transient staging-document activations |
 | `PreviewPlacement.swift` | Keep the floating preview and controls in the visible lower-left of the PowerPoint window |

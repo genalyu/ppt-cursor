@@ -1,6 +1,16 @@
 #!/bin/sh
 # Read-only local diagnostics. Does not read credentials or send network requests.
 set -u
+cd "$(dirname "$0")/.."
+app="dist/PPT Cursor.app/Contents/MacOS/PPTCursor"
+# Older builds ignore this flag and would start the model controller.
+# Do not launch one as a supposedly key-free diagnostic.
+build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' 'dist/PPT Cursor.app/Contents/Info.plist' 2>/dev/null || true)
+case "$build" in ''|*[!0-9]*) build=0 ;; esac
+if [ -x "$app" ] && [ "$build" -ge 45 ]; then
+    exec "$app" --check-environment
+fi
+printf '尚无支持诊断的应用构建：以下为源码构建环境初检。重新构建后可在应用中运行环境检查。\n'
 failed=0
 check() {
     if command -v "$1" >/dev/null 2>&1; then

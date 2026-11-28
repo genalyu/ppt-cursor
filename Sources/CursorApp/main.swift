@@ -7,7 +7,13 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint), accept: #selector(accept), dismiss: #selector(dismiss), submitInstruction: #selector(submitInstruction))
+    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint), accept: #selector(accept), dismiss: #selector(dismiss), submitInstruction: #selector(submitInstruction), environmentCheck: #selector(openEnvironment))
+    private lazy var environmentWindow = EnvironmentWindow(modelState: { [weak self] in
+        if self?.api != nil { return .unlockedAPI }
+        if ModelSettings.hasSavedConnection { return .savedAPI }
+        return CodexInstallation.executable() != nil ? .cli : .missing
+    }, configureModel: { [weak self] in self?.chooseModel() })
+    @objc private func openEnvironment() { environmentWindow.show() }
     private var documentLookup: UUID?
     private var awaitingDocument = false
     private var followsActiveDocument = true
@@ -56,7 +62,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         for (title, action) in [("采纳当前建议", #selector(accept)),
                                 ("忽略当前建议", #selector(dismiss)), ("选择本次编辑的图片素材…", #selector(chooseImages)),
-                                ("清空图片素材", #selector(clearImages)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("模型连接…", #selector(chooseModel)), ("退出 PPT Cursor", #selector(quit))] {
+                                ("清空图片素材", #selector(clearImages)), ("为其他文稿启动预测…", #selector(chooseNativeDocument)), ("模型连接…", #selector(chooseModel)), ("环境检查…", #selector(openEnvironment)), ("退出 PPT Cursor", #selector(quit))] {
             let entry = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             entry.target = self
         }
@@ -106,7 +112,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                 self.updateSessionControls()
                 if restored == nil && ModelSettings.hasSavedConnection {
                     self.setPhase(.error)
-                    self.message("模型密钥需要钥匙串授权，请打开模型连接并重新保存连接")
+                    self.message("原密钥需要系统授权：打开模型连接，密钥留空并保存即可沿用")
                 } else if CommandLine.arguments.contains("--start-editing") {
                     self.startEditing()
                 } else if restored != nil || UserDefaults.standard.bool(forKey: "hasStartedSession") {
@@ -195,8 +201,8 @@ final class Controller: NSObject, NSApplicationDelegate {
             return
         }
         guard let script = Bundle.main.url(forResource: "stage-drawing", withExtension: "py") else {
-            setPhase(.error)
-            message("请从打包的 PPT Cursor 应用启动开放式会话")
+            setPhase(.environment)
+            message("应用组件不完整，请运行环境检查，或重新下载打包的预览版")
             return
         }
         // Prediction reads the PowerPoint document. Only the canvas overlay needs screen access.
@@ -299,7 +305,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     self.nativeDirectory = nil
                     self.nativeDocument = nil
                     self.updateSessionControls()
-                    self.setPhase(process.terminationStatus == 0 ? .paused : (process.terminationStatus == 3 ? .cancelled : .error))
+                    self.setPhase(SessionPhase.workerExit(process.terminationStatus, detail: lastLine))
                     self.message(finalStatus)
                 }
             }
@@ -974,6 +980,26 @@ if CommandLine.arguments.dropFirst().elementsEqual(["--configure-bailian"]) {
 if CommandLine.arguments.dropFirst().elementsEqual(["--check-model"]) {
     guard let settings = ModelSettings.restore() else { print("Codex CLI"); exit(1) }
     print(settings.model, settings.baseURL)
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().elementsEqual(["--check-environment"]) {
+    let codex = CodexInstallation.executable()
+    let report = EnvironmentDiagnostics.check(environment: NativeSessionLauncher.environment(codex: codex),
+        powerPoint: NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.Powerpoint"),
+        resources: Bundle.main.resourceURL,
+        model: ModelSettings.hasSavedConnection ? .savedAPI : (codex != nil ? .cli : .missing))
+    print(report.text)
+    exit(report.missingCount == 0 ? 0 : 1)
+}
+if CommandLine.arguments.dropFirst().elementsEqual(["--show-environment-check"]) {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let window = EnvironmentWindow(modelState: {
+        ModelSettings.hasSavedConnection ? .savedAPI : (CodexInstallation.executable() != nil ? .cli : .missing)
+    }, onClose: { NSApp.terminate(nil) })
+    window.show()
+    app.run()
     exit(0)
 }
 
