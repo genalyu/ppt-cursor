@@ -12,6 +12,32 @@ spec.loader.exec_module(staging)
 
 
 class InstructionTests(unittest.TestCase):
+    def test_explicit_request_skips_only_initial_debounce(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            source = folder / "test.pptx"
+            source.touch()
+            before = dict(document=str(source), slideID=256, width=720, height=540,
+                          objects=[dict(id="shape", x=0)])
+            changed = dict(before, objects=[dict(id="shape", x=10)])
+            request = dict(text="向右移动", document=str(source), slideID=256)
+            for explicit, edited, expected_waits in ((True, False, 0), (False, False, 1), (True, True, 1)):
+                with self.subTest(explicit=explicit, edited=edited):
+                    snapshots = [before, changed, changed] if edited else [before, before]
+                    def predict(baseline, slide, history, *args, **kwargs):
+                        self.assertEqual(json.loads(history.read_text())[-1]["objects"], snapshots[-1]["objects"])
+                        raise StopIteration()
+                    with patch.object(staging.subprocess, "check_output", side_effect=[json.dumps(s) for s in snapshots]) as capture, \
+                            patch.object(staging, "predict_preview", side_effect=predict), \
+                            patch.object(staging.time, "sleep") as sleep, \
+                            patch.object(staging, "restore_checkpoint", return_value=None):
+                        with self.assertRaises(StopIteration):
+                            staging.watch_preview(source, folder / "preview", folder / "canvas",
+                                                  instruction=request if explicit else None)
+                    self.assertEqual(capture.call_count, len(snapshots))
+                    self.assertEqual(sleep.call_count, expected_waits)
+                    self.assertTrue(all(call.args == (0.5,) for call in sleep.call_args_list))
+
     def test_scope_and_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "test.pptx"

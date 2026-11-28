@@ -24,10 +24,11 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
-## Current priorities after build 47
+## Current priorities after build 48
 
 - Compact native additions now pass real-model label generation, editable group acceptance and automatic continuation. The aligned-label request took 4.608 s model / 2.404 s render; the next compact proposal took 6.686 / 1.732 s. Broaden representative diagrams and complex-style coverage without sacrificing output fidelity.
 - Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
+- Full submit-to-display-ready text samples measured 6.678 s before and 6.599 s after removing an explicit request's unnecessary initial 500 ms debounce. Model/render variation offsets some savings; do not advertise a fixed total speedup. Capture/startup/check/display time is currently a combined residual, so broader phase instrumentation remains open.
 - The full explicit-request control-window submission/acceptance path passed twice through the API connection; the real CLI/model/staging path also passed. Continue covering broader edit types and longer sessions.
 - Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
 - Pause/quit now wait through writeback and checkpoint persistence; real-process and isolated-controller tests cover shutdown and serialized restart. A live scoped request was cancelled after switching between public documents with the same slide ID; neither the request nor a write leaked to the target. Physical pause during a real write and automatic document-follow coverage remain open.

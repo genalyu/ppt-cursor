@@ -1513,7 +1513,11 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                         accepted_pages[state["slideID"]] = (copy, revision, object_structure(state))
                         history = restored_history
                         print("已恢复此前采纳的图形，继续预测。", flush=True)
-                time.sleep(0.5)
+                # An explicit submission already expresses intent to act now. Re-read
+                # the foreground snapshot immediately; only passive prediction needs
+                # the initial debounce. Changes still take the normal settle path.
+                if user_instruction is None:
+                    time.sleep(0.5)
                 continue
             if awaiting_save is not None:
                 if slide_content(state) == last_prediction:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0 preview — build 48
+
+- Remove the fixed initial 500 ms debounce for an explicitly submitted editing request. The worker still re-reads the foreground snapshot before prediction and retains all scope, stale-state and native writeback checks.
+- Keep the initial debounce for passive prediction and the normal settle path if the slide changes between reads. Regression coverage distinguishes these three cases.
+- Measure submission-to-displayed-preview on a public fixture, including initial capture and presentation of the result, separately from model and rendering durations. Report samples rather than promising a fixed end-to-end speedup.
+
 ## 0.1.0 preview — build 47
 
 - Protect native preview/writeback and accepted-checkpoint persistence with a cross-process transaction lock. Pause first disallows new acceptance, waits off the UI thread for the protected work, then stops the session process group.
