@@ -14,6 +14,7 @@ python3 Scripts/test-text-edits.py
 python3 Scripts/test-instructions.py
 python3 Scripts/test-staged-history.py
 python3 Scripts/test-fast-preview.py
+python3 Scripts/test-render-workspace.py
 python3 Scripts/test-checkpoints.py
 python3 Scripts/test-web-assets.py
 ./Scripts/test-session-status.sh

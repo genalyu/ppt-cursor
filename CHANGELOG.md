@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 43
+
+- Reuse an isolated LibreOffice profile within each editing session, avoiding repeated initialization for later previews. User LibreOffice profiles are never used.
+- Rotate the temporary profile after export errors so a broken profile does not block every subsequent suggestion; remove it with the session on pause/exit.
+- A repeatable public-fixture benchmark reduced warm full-preview time from 2.206–2.276 s with isolated exports to 1.499–1.517 s with session reuse, with identical RGBA pixels and PPTX part contents. Cold start still costs initialization.
+- Verified two real accepted changes and a third preview in one qwen4-max session: render times 2.455 / 1.767 / 1.806 s. Model generation remains a separate bottleneck for DrawingML-heavy proposals.
+
 ## 0.1.0 preview — build 42
 
 - Support direct native bold and italic changes for text with a known uniform style. Compact model edits preserve other formatting and carry unsaved styles into subsequent previews.

@@ -65,6 +65,8 @@ A measured geometry-render example took **0.103 seconds**, versus **2.998 second
 
 Two real qwen4-max requested-text edits took **2.106 / 1.793 seconds** for the model and **2.636 / 2.621 seconds** for rendering. Both used compact text proposals and were accepted in PowerPoint. These are fixture-specific samples, excluding user review/background waiting, not a general latency guarantee.
 
+Build 43 reuses a private renderer profile within each session. A same-slide benchmark reduced warm full-preview time from **2.206–2.276 s to 1.499–1.517 s**, preserving every RGBA pixel and PPTX part. Cold initialization remains. A real continuous session rendered in **2.455 / 1.767 / 1.806 s**; model generation for the latter two drawings still took 11.557 / 18.288 s and needs further optimization.
+
 [Validation notes](docs/QA-2026-11-28.md) distinguish mocked regressions from live provider requests and actual PowerPoint writes. [Quality roadmap](docs/PRODUCT-PLAN.md).
 
 ## Privacy

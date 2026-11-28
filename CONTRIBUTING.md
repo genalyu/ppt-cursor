@@ -24,6 +24,7 @@ The runner uses XCTest when available and the same history assertions through sw
 - `Scripts/stage-drawing.py`: history, provider requests, temporary PPTX staging and preview rendering.
 - `Scripts/web_assets.py`: bounded Commons search, license filtering and normalized image downloads.
 - `Scripts/test-style-bridge.sh`: executes the actual bridge against a JavaScriptCore double to verify style readback, stale-baseline rejection and rollback without Apple events.
+- `Scripts/test-render-workspace.py`: renderer-profile reuse, isolation, cleanup and failure recovery; `--benchmark` runs real LibreOffice exports and compares all preview channels and PPTX parts.
 - `Scripts/test-staged-history.py`: deterministic session regression scenarios.
 
 Change the actual source repository, not a packaged resource copy. Build scripts copy resources into `dist`. Keep user edits and other work in progress intact.

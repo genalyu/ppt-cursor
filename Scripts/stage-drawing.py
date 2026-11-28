@@ -2,6 +2,8 @@
 """Place a model-authored DrawingML shape into a disposable PPTX for preview."""
 import argparse
 import base64
+from contextlib import contextmanager
+from contextvars import ContextVar
 import http.client
 import hashlib
 import io
@@ -555,15 +557,58 @@ def run_renderer(command, timeout):
         raise ValueError("无法渲染当前页" + ("：" + detail[-1][:240] if detail else ""))
 
 
+_render_workspace = ContextVar("render_workspace", default=None)
+
+
+class RenderWorkspace:
+    """A private profile shared only by sequential exports in one worker session."""
+    def __init__(self, root):
+        self.root = root
+        self.generation = 0
+
+    @property
+    def profile(self):
+        return self.root / f"profile-{self.generation}"
+
+    def invalidate(self):
+        previous = self.profile
+        self.generation += 1
+        shutil.rmtree(previous, ignore_errors=True)
+
+
+@contextmanager
+def render_workspace(parent):
+    existing = _render_workspace.get()
+    if existing is not None:
+        yield existing
+        return
+    with tempfile.TemporaryDirectory(prefix="renderer-", dir=parent) as folder:
+        workspace = RenderWorkspace(Path(folder))
+        token = _render_workspace.set(workspace)
+        try:
+            yield workspace
+        finally:
+            _render_workspace.reset(token)
+
+
 def export_page(scratch, page, decks):
     office = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
     settings = {"ExportHiddenSlides": {"type": "boolean", "value": "true"},
                 "PageRange": {"type": "string", "value": str(page)}}
-    run_renderer([office, "-env:UserInstallation=" + (scratch / "profile").as_uri(),
-                    "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
-                    "--outdir", str(scratch), *map(str, decks)], timeout=90)
-    if any(not (scratch / (deck.stem + ".pdf")).is_file() for deck in decks):
-        raise ValueError("LibreOffice 未生成页面预览，请检查文稿能否正常打开")
+    workspace = _render_workspace.get()
+    profile = workspace.profile if workspace is not None else scratch / "profile"
+    try:
+        profile.mkdir(mode=0o700, exist_ok=True)
+        run_renderer([office, "-env:UserInstallation=" + profile.as_uri(),
+                        "--headless", "--convert-to", "pdf:impress_pdf_Export:" + json.dumps(settings),
+                        "--outdir", str(scratch), *map(str, decks)], timeout=90)
+        if any(not (scratch / (deck.stem + ".pdf")).is_file() for deck in decks):
+            raise ValueError("LibreOffice 未生成页面预览，请检查文稿能否正常打开")
+    except (ValueError, OSError):
+        # A timeout, lock or broken profile must not poison every later suggestion.
+        if workspace is not None:
+            workspace.invalidate()
+        raise
 
 
 def page_png(pdf, output):
@@ -667,7 +712,7 @@ def fast_geometry_preview(result, state, outline):
 
 def render_pair(source, slide_id, fragment, destination, replace_id, require_visible=False, baseline_image=None, outline=None, reference_picture=None, geometry_state=None):
     """Render both states from one baseline, without taking focus from PowerPoint."""
-    with tempfile.TemporaryDirectory(dir=destination.parent) as folder:
+    with tempfile.TemporaryDirectory(dir=destination.parent) as folder, render_workspace(Path(folder)):
         scratch = Path(folder).resolve()
         baseline = scratch / "before.pptx"
         shutil.copyfile(source, baseline)
@@ -987,7 +1032,7 @@ def predict_preview(source, selector, history_file, output, references=(), dismi
         if str(state["slideID"]) != selector or state["document"] != history[-1]["document"]:
             raise ValueError("History must belong to one slide and document")
         states.append({key: state[key] for key in ("width", "height", "objects", "selectedIDs", "textSelection", "editingText", "acceptedSuggestion") if key in state})
-    with tempfile.TemporaryDirectory() as directory:
+    with tempfile.TemporaryDirectory() as directory, render_workspace(Path(directory)):
         scratch = Path(directory)
         baseline = scratch / "baseline.pptx"
         tree = copy_live_geometry(source, selector, states[-1], baseline)
@@ -1356,7 +1401,7 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     dismissed = []
     references_pending = bool(references)
     awaiting_save = None
-    with tempfile.TemporaryDirectory(dir=destination.parent) as directory:
+    with tempfile.TemporaryDirectory(dir=destination.parent) as directory, render_workspace(Path(directory)):
         scratch = Path(directory)
         while True:
             # Writeback already confirmed this snapshot. Start the follow-up even if
