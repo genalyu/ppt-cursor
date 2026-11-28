@@ -2,11 +2,6 @@ import Foundation
 import CryptoKit
 import CursorCore
 
-public struct BridgeFailure: LocalizedError {
-    public let errorDescription: String?
-    init(_ message: String) { errorDescription = message }
-}
-
 public enum PowerPointBridge {
     public static func capture() throws -> SlideSnapshot? { try run([]) }
 
@@ -105,16 +100,7 @@ public enum PowerPointBridge {
                 throw BridgeFailure("未能及时读取当前文稿。请处理 macOS 或 PowerPoint 的弹窗，然后再次点击“启动开放式预测”。")
             }
             let detail = String(decoding: data, as: UTF8.self)
-            if detail.contains("(-1743)") {
-                throw BridgeFailure("请在系统设置 → 隐私与安全性 → 自动化中允许 PPT Cursor 控制 Microsoft PowerPoint，然后返回幻灯片。")
-            }
-            if detail.contains("(-1712)") {
-                let message = arguments.first != "apply"
-                    ? "读取幻灯片超时。请查看 PowerPoint 或 macOS 是否有等待处理的对话框。"
-                    : "PowerPoint 未及时确认写入结果。请先核对幻灯片，再继续编辑。"
-                throw BridgeFailure(message)
-            }
-            throw BridgeFailure(String(detail.prefix(1500)))
+            throw BridgeFailure(BridgeFailure.message(forScriptError: detail, applying: arguments.first == "apply"))
         }
         return try JSONDecoder().decode(Value?.self, from: data)
     }

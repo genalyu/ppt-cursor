@@ -51,6 +51,11 @@ assert(current.objects.every(obj=>obj.textBold && obj.textItalic),'Style write w
 let rejected=false;
 try { run(['apply','fixture.json']); } catch(error) { rejected=String(error).includes('Slide changed'); }
 assert(rejected,'A style-only baseline change was not rejected');
+prepare();
+request.baseline.selectedIDs=['a'];current.selectedIDs=[];
+try { run(['apply','fixture.json']); throw Error('Accepted changed selection'); }
+catch(error) { assert(String(error).includes('Slide changed'),'Unexpected selection error: '+error); }
+assert(JSON.stringify(current.objects)===JSON.stringify(fixture.objects),'Selection rejection wrote objects');
 prepare();failSecond=true;
 try { run(['apply','fixture.json']); throw Error('Missing injected failure'); }
 catch(error) { assert(String(error).includes('Simulated write failure'),'Unexpected error: '+error); }

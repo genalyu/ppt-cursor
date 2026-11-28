@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 46
+
+- Fix a stranded session after native acceptance fails: the preview child now handles retry/dismiss after failure while continuing to prohibit commands during an active write or export.
+- A failed proposal cannot be submitted twice. Selection/page baseline guards remain strict; a stale proposal is rejected before editing.
+- Replace raw JXA paths and wrapper errors with actionable messages. Distinguish a known pre-write stale rejection from an uncertain write result that needs user inspection.
+- Reproduced the old retry command remaining unread after a real stale-selection failure. Verified the corrected failure → retry → real model preview → accepted text edit → automatic follow-up sequence without reconnecting or re-entering a key.
+
 ## 0.1.0 preview — build 45
 
 - Add an in-app environment check with actionable dependency results, refresh, usage-guide links and a copyable summary that omits credentials, document contents and full local paths.

@@ -69,7 +69,7 @@ enum StagedPreview {
         let direct = proposal != nil || target?.operation == "insert" || baseline.objects.contains { $0.id == target?.presetTarget && $0.autoShapeType != nil }
         var displayedWindow = window
         var displayedPage = frame
-        var submitted = false
+        var submission = StagedSubmission.ready
         weak var feedbackPanel: SuggestionPanel?
         weak var activeShortcut: AcceptShortcut?
         func matchesPage(_ current: PowerPointWindow) -> Bool {
@@ -77,7 +77,7 @@ enum StagedPreview {
                 locate(current) == displayedPage
         }
         let actions = StagedActions { input in
-            guard !submitted, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
+            guard submission.canAccept, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
             guard let current = PowerPointWindow.front(of: powerpoint), matchesPage(current) else {
                 app.terminate(nil)
                 return
@@ -85,7 +85,7 @@ enum StagedPreview {
             print("PPT_CURSOR_PHASE=写入")
             fflush(stdout)
             guard direct else {
-                submitted = true
+                submission = .exporting
                 panel.orderOut(nil)
                 feedbackPanel?.orderOut(nil)
                 let save = NSSavePanel()
@@ -120,14 +120,14 @@ enum StagedPreview {
                         }
                         print("PPT_CURSOR_PHASE=待采纳")
                         fflush(stdout)
-                        submitted = false
+                        submission = .ready
                         panel.orderFrontRegardless()
                         feedbackPanel?.orderFrontRegardless()
                     }
                 }
                 return
             }
-            submitted = true
+            submission = .writing
             activeShortcut?.disable()
             panel.orderOut(nil)
             feedbackPanel?.showStatus("正在写入 PowerPoint…", finished: false)
@@ -147,6 +147,7 @@ enum StagedPreview {
                         }
                         app.terminate(nil)
                     case .failure(let error):
+                        submission = .failed
                         print("PPT_CURSOR_PHASE=操作失败")
                         fflush(stdout)
                         feedbackPanel?.showStatus(error.localizedDescription, finished: true)
@@ -156,7 +157,7 @@ enum StagedPreview {
             }
         }
         actions.onDismiss = {
-            guard !submitted else { return }
+            guard submission.canAccept else { return }
             do { try Data().write(to: directory.appendingPathComponent("dismissed"), options: .atomic) }
             catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)) }
         }
@@ -204,7 +205,7 @@ enum StagedPreview {
         var hidden = false
         var focusGeneration = 0
         func suspendPreview(_ reason: String) {
-            guard !submitted, !hidden else { return }
+            guard submission.canAccept, !hidden else { return }
             print("PPT_CURSOR_PHASE=待切回")
             fflush(stdout)
             hidden = true
@@ -216,17 +217,20 @@ enum StagedPreview {
         }
         let focusObserver = workspaceEvents.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                        object: nil, queue: .main) { _ in
-            guard !submitted, !powerpoint.isActive else { return }
+            guard submission.canAccept, !powerpoint.isActive else { return }
             suspendPreview("application switch")
         }
         defer { workspaceEvents.removeObserver(focusObserver) }
         var reading = false
         var nextVerification = Date.distantPast
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
-            guard !submitted else { return }
+            // A failed proposal cannot be applied twice, but retry/dismiss must still
+            // release this child so the worker can continue. Never interrupt a write.
+            guard submission.canHandleCommands else { return }
             if let retry = controlDirectory?.appendingPathComponent("retry"),
                FileManager.default.fileExists(atPath: retry.path) { app.terminate(nil); return }
             if consume("dismiss-preview") { actions.dismiss(); return }
+            guard submission.canAccept else { return }
             if consume("refresh-shortcut") {
                 shortcut.disable()
                 if direct && !hidden && powerpoint.isActive {
@@ -261,7 +265,7 @@ enum StagedPreview {
                 let valid = (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
-                    guard !submitted, powerpoint.isActive, generation == focusGeneration,
+                    guard submission.canAccept, powerpoint.isActive, generation == focusGeneration,
                           let latest = PowerPointWindow.front(of: powerpoint),
                           latest.id == current.id, latest.frame == current.frame else { return }
                     guard valid else {

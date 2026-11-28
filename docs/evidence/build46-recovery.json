@@ -1,0 +1,102 @@
+{
+  "description": "Real controller phase events: stale rejection, retry, accepted requested text edit, automatic follow-up. Public test fixture only.",
+  "events": [
+    {
+      "time": "2026-11-28T12:11:02Z",
+      "phase": "预测"
+    },
+    {
+      "time": "2026-11-28T12:11:04Z",
+      "phase": "生成预览"
+    },
+    {
+      "phase": "待切回",
+      "time": "2026-11-28T12:11:07Z"
+    },
+    {
+      "time": "2026-11-28T12:11:09Z",
+      "phase": "待采纳"
+    },
+    {
+      "phase": "待切回",
+      "time": "2026-11-28T12:11:12Z"
+    },
+    {
+      "time": "2026-11-28T12:11:26Z",
+      "phase": "写入"
+    },
+    {
+      "time": "2026-11-28T12:11:26Z",
+      "phase": "操作失败"
+    },
+    {
+      "time": "2026-11-28T12:11:36Z",
+      "phase": "读取"
+    },
+    {
+      "phase": "预测",
+      "time": "2026-11-28T12:11:36Z"
+    },
+    {
+      "time": "2026-11-28T12:11:39Z",
+      "phase": "生成预览"
+    },
+    {
+      "time": "2026-11-28T12:11:41Z",
+      "phase": "待采纳"
+    },
+    {
+      "phase": "待切回",
+      "time": "2026-11-28T12:11:53Z"
+    },
+    {
+      "time": "2026-11-28T12:11:59Z",
+      "phase": "写入"
+    },
+    {
+      "time": "2026-11-28T12:11:59Z",
+      "phase": "读取"
+    },
+    {
+      "time": "2026-11-28T12:12:00Z",
+      "phase": "预测"
+    },
+    {
+      "time": "2026-11-28T12:12:15Z",
+      "phase": "生成预览"
+    },
+    {
+      "phase": "待采纳",
+      "time": "2026-11-28T12:12:17Z"
+    }
+  ],
+  "followupMetrics": {
+    "version": 1,
+    "modelSeconds": [
+      14.676
+    ],
+    "searchSeconds": 0,
+    "renderSeconds": 1.893,
+    "requestedEdit": false,
+    "proposalKind": "shapeInsert"
+  },
+  "verifiedChange": {
+    "before": "Research",
+    "after": "Discover",
+    "objectCountBefore": 5,
+    "objectCountAfter": 5,
+    "maxGeometryDifferencePoints": 8.1e-05,
+    "otherObjectsUnchanged": true
+  },
+  "uiObservation": {
+    "predictionElapsedSeconds": [
+      3,
+      6
+    ],
+    "failedPreviewRetryRecovered": true
+  },
+  "limitations": [
+    "Directed synthetic Tab was not a physical-keyboard acceptance.",
+    "No native screen recording was produced."
+  ]
+}

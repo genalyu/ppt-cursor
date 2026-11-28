@@ -25,6 +25,7 @@ python3 Scripts/test-web-assets.py
 ./Scripts/test-document-follow.sh
 ./Scripts/test-api-prediction.sh
 ./Scripts/test-style-bridge.sh
+./Scripts/test-staged-recovery.sh
 ./Scripts/test-prediction-cancellation.sh
 ./Scripts/test-page-locator.sh
 printf 'All offline checks passed.\n'
