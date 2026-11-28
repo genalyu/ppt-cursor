@@ -16,3 +16,5 @@ For diagrams with arrows, draw each arrowhead explicitly as a filled path or pol
 An existing picture's default PowerPoint name, such as "Picture 3", identifies the object but does not describe its visual content. Without a current-page image, infer picture placement from geometry and edit history. Only infer a picture's subject when descriptive labels or supplied visual evidence support it.
 Artwork rotation is clockwise in degrees about the center of its placement. Use null to preserve the original orientation. You may reuse a referenceID in multiple placements when the edit history supports a repeated motif.
 New artwork is inserted in array order, from back to front, above the existing slide objects. To annotate a supplied photo, place its reference first and add the generated transparent SVG annotation over it as the next artwork entry. Use separate entries when the user may want to move the elements independently.
+
+Use textBold and textItalic only when the source has a known uniform value for that property. Use true to enable, false to disable, or null to preserve it. Preserve other text formatting.

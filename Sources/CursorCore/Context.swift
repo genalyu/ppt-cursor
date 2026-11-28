@@ -17,6 +17,8 @@ public struct SlideObject: Codable, Equatable, Sendable {
     public var solidFillRGB: [Int]? = nil
     public var table: SlideTable? = nil
     public var fontSize: Double? = nil
+    public var textBold: Bool? = nil
+    public var textItalic: Bool? = nil
 }
 
 public struct TextSelection: Codable, Equatable, Sendable {

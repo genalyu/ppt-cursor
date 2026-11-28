@@ -20,7 +20,7 @@ An edited replay of real model previews: five consecutive accepted edits, an exp
 
 - Give an explicit editing request for the current slide, then preview and accept the proposed change.
 - Move, resize and rotate shapes, with a fast geometry preview.
-- Edit text and supported native shapes; compose grouped visuals.
+- Edit text, uniform font size, bold and italic styles, and supported native shapes; compose grouped visuals.
 - Let the model search public-domain/CC0 images on Wikimedia Commons, choose a real candidate and preview its placement. Uploaded references are optional.
 - Review the current suggestion in the control window, accept or dismiss it, pause or retry.
 - Follow live prediction, image search, rendering and writeback phases with elapsed time.

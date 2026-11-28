@@ -40,6 +40,7 @@ flowchart LR
 - Keychain reads and writes run off the AppKit event loop. Reusing a live connection avoids another key read/write. Authorization failure keeps the previous connection preferences intact.
 - Preview `metrics.json` records proposal format and model/search/render durations, without slide contents, prompts or credentials. It shares the temporary preview lifecycle rather than creating persistent telemetry.
 - A phase event describes real work. The control window and menu bar use the same phase/elapsed function. Session diagnostics contain phase names and timestamps, not API keys or slide text.
+- Text snapshots include known uniform bold/italic values. Compact edits expand locally into the existing DrawingML, and native equivalence must account for every difference. The writer checks every run and restores touched properties after a later failure; unknown/mixed styles cannot be assigned as a whole-range native edit.
 - Acceptance is bound to the displayed proposal and current slide baseline. Faster rendering must never weaken that comparison.
 - PowerPoint temporarily opens a staged deck to copy native content. The document follower must not treat that as the user's navigation: writeback invalidates pending observations and suspends following; a subsequent switch requires repeated observation.
 - Swift omits nil optional fields while JXA may emit null. Content comparisons normalize these representations so a capture does not create a false editing transition.

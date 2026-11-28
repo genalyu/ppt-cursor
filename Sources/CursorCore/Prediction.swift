@@ -12,6 +12,8 @@ public struct Placement: Codable, Sendable {
 
 public struct ObjectEdit: Codable, Sendable {
     public var solidFillRGB: [Int]? = nil
+    public var textBold: Bool? = nil
+    public var textItalic: Bool? = nil
     public let id: String
     public let fontSize: Double?
     public let duplicate: Bool?
@@ -44,6 +46,8 @@ public struct Prediction: Codable, Sendable {
                   if let text = edit.text, source.text == nil || text.count > 20000 { return false }
                   if let rgb = edit.solidFillRGB, source.solidFillRGB == nil || rgb.count != 3 || !rgb.allSatisfy({ (0...255).contains($0) }) { return false }
                   if let size = edit.fontSize, source.fontSize == nil || !(1...4000).contains(size) { return false }
+                  if edit.textBold != nil && source.textBold == nil { return false }
+                  if edit.textItalic != nil && source.textItalic == nil { return false }
                   return true
               }),
               artwork.allSatisfy({ ($0.rotation ?? 0).isFinite && $0.placement.validate(in: slide) && validArtwork($0, images: images) }) else {
@@ -90,7 +94,7 @@ extension Prediction {
             let nativeText = edit.text?.replacingOccurrences(of: "\r\n", with: "\r")
                 .replacingOccurrences(of: "\n", with: "\r")
             let angle = edit.rotation.truncatingRemainder(dividingBy: 360)
-            return ObjectEdit(solidFillRGB: edit.solidFillRGB, id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
+            return ObjectEdit(solidFillRGB: edit.solidFillRGB, textBold: edit.textBold, textItalic: edit.textItalic, id: edit.id, fontSize: edit.fontSize, duplicate: edit.duplicate,
                               placement: edit.placement, rotation: angle < 0 ? angle + 360 : angle, text: nativeText)
         }
         // Match the write tolerance in the PowerPoint automation bridge.
@@ -101,6 +105,8 @@ extension Prediction {
             return differs(box.x, source.x) || differs(box.y, source.y) || differs(box.width, source.width) ||
                 differs(box.height, source.height) || differs(edit.rotation, source.rotation) ||
                 (edit.text != nil && edit.text != source.text) ||
+                (edit.textBold != nil && edit.textBold != source.textBold) ||
+                (edit.textItalic != nil && edit.textItalic != source.textItalic) ||
                 (edit.solidFillRGB != nil && edit.solidFillRGB != source.solidFillRGB) ||
                 (edit.fontSize.map { differs($0, source.fontSize ?? 0) } ?? false)
         }

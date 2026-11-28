@@ -24,12 +24,12 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
-## Current priorities after build 41
+## Current priorities after build 42
 
 - Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
 - The full explicit-request control-window submission/acceptance path passed twice through the API connection; the real CLI/model/staging path also passed. Continue covering broader edit types and longer sessions.
 - Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
-- Broaden direct native formatting and verify it in PowerPoint, then add native UI footage and finish the remaining live gates above.
+- Uniform bold/italic now pass native writeback and real-provider acceptance. Broaden text color/alignment and mixed-run editing, add native UI footage and finish the remaining live gates above.
 - Reuse the already-unlocked running connection while the owner is away; avoid restarts or credential operations requiring their interaction.
 
 ## Benchmark

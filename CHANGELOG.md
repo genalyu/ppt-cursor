@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 42
+
+- Support direct native bold and italic changes for text with a known uniform style. Compact model edits preserve other formatting and carry unsaved styles into subsequent previews.
+- Include style in the live baseline, preserve style-only suggestions during normalization, verify every written run and restore styles after a later write failure. Unknown/mixed properties remain unsupported for direct whole-range changes.
+- Verified a real qwen4-max request to remove italics while retaining bold, Arial, 22 pt, color and placement, followed by another automatic suggestion without reconnecting the model.
+- Add offline regression checks for inherited styles, combined edits, stale baselines, run readback failures and transactional rollback.
+
 ## 0.1.0 preview — build 41
 
 - Keep the floating preview in the lower-left of the PowerPoint window, with acceptance controls aligned directly above it. The card follows window movement and stays inside the visible display.

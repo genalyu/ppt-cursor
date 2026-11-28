@@ -93,6 +93,51 @@ class TextEditTests(unittest.TestCase):
                 self.assertIsNone(staging.equivalent_edit(parse(drawing), parse(altered), target))
                 self.assertIsNone(staging.equivalent_edit(parse(drawing), parse(expanded), dict(target, fontSize=None)))
 
+    def test_uniform_style_toggle_preserves_other_formatting(self):
+        parse = lambda xml: ET.fromstring(f'<root xmlns:p="{P}" xmlns:a="{A}">{xml}</root>')[0]
+        target = dict(self.state["objects"][0], textBold=True, textItalic=True)
+        variants = [self.shape["drawing"], self.shape["drawing"].replace(' b="1" i="1"', ''),
+                    self.shape["drawing"].replace('</a:r>', '</a:r><a:r><a:rPr b="1" i="1"/><a:t> more</a:t></a:r>')]
+        for template in variants:
+            with self.subTest(template=template):
+                shape = dict(self.shape, drawing=template, textEditFields=staging.text_edit_fields(template, target))
+                proposal = dict(self.proposal, textEdit=dict(text=None, fontSize=None, textBold=False, textItalic=False))
+                drawing = staging.expand_text_edit(proposal, [shape])
+                result = staging.equivalent_edit(parse(template), parse(drawing), target)
+                self.assertFalse(result["textBold"])
+                self.assertFalse(result["textItalic"])
+                self.assertNotIn("text", result)
+                self.assertNotIn("fontSize", result)
+                self.assertIsNone(staging.equivalent_edit(parse(template), parse(drawing), dict(target, textBold=None)))
+                self.assertIsNone(staging.equivalent_edit(parse(template), parse(drawing.replace('287589','FF0000')), target))
+        no_properties = self.shape["drawing"]
+        start, end = no_properties.index('<a:rPr'), no_properties.index('</a:rPr>') + len('</a:rPr>')
+        no_properties = no_properties[:start] + no_properties[end:]
+        target.update(textBold=False, textItalic=False)
+        shape = dict(self.shape, drawing=no_properties, textEditFields=staging.text_edit_fields(no_properties, target))
+        proposal = dict(self.proposal, textEdit=dict(text=None, fontSize=28, textBold=True, textItalic=True))
+        result = staging.equivalent_edit(parse(no_properties), parse(staging.expand_text_edit(proposal, [shape])), target)
+        self.assertEqual((result["textBold"], result["textItalic"], result["fontSize"]), (True, True, 28))
+        for value in (0, 1, "true", [], {}):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                staging.expand_text_edit(dict(proposal, textEdit=dict(text=None, fontSize=None, textBold=value)), [shape])
+        mixed = no_properties.replace('</a:r>', '</a:r><a:r><a:rPr b="1"/><a:t> bold</a:t></a:r>')
+        self.assertNotIn("textBold", staging.text_edit_fields(mixed, target))
+
+    def test_unsaved_style_updates_model_and_render_baseline(self):
+        state = copy.deepcopy(self.state)
+        state["objects"][0].update(textBold=False, textItalic=False)
+        tree = staging.copy_live_geometry(self.source, "256", state, self.folder / "style.pptx")
+        shape = staging.model_shapes(tree, state)[0]
+        self.assertIn('b="0" i="0"', shape["drawing"])
+        self.assertIn("textBold", shape["textEditFields"])
+        self.assertIn("textItalic", shape["textEditFields"])
+        proposal = dict(self.proposal, textEdit=dict(text=None, fontSize=None, textBold=True, textItalic=True))
+        drawing = staging.expand_text_edit(proposal, [shape])
+        accepted = staging.native_acceptance(tree, shape["replaceID"], drawing, state, "Emphasize")
+        self.assertTrue(accepted["edits"][0]["textBold"])
+        self.assertTrue(accepted["edits"][0]["textItalic"])
+
     def test_invalid_or_conflicting_edits_are_rejected(self):
         invalid = [dict(textEdit={}), dict(textEdit=dict(text=None, fontSize=None)),
                    dict(textEdit=dict(text="a\nb", fontSize=None)), dict(textEdit=dict(text="\x00", fontSize=None)),

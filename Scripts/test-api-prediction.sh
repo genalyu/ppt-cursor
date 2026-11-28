@@ -88,6 +88,28 @@ for x in [2.01, 2.03] {
     let move = try model.predict(context, images: [image], currentPage: Data([1]))
     precondition(move.edits.count == (x == 2.01 ? 0 : 1))
 }
+// Style-only changes must survive normalization; unknown/mixed styles are rejected.
+for field in ["textBold", "textItalic"] {
+    let raw = try JSONEncoder().encode(try state(2, multiline: true))
+    var page = try JSONSerialization.jsonObject(with: raw) as! [String: Any]
+    var objects = page["objects"] as! [[String: Any]]
+    objects[0][field] = false
+    page["objects"] = objects
+    let styled = try JSONDecoder().decode(SlideSnapshot.self, from: JSONSerialization.data(withJSONObject: page))
+    var styleHistory = EditHistory()
+    _ = styleHistory.observe(styled)
+    let styleContext = styleHistory.currentContext!
+    for flag in [true, false] {
+        MockAPI.overrideSuggestion = #"{"summary":"Style","edits":[{"id":"a","placement":{"x":2,"y":0,"width":10,"height":10},"rotation":0,""# + field + #"":"# + String(flag) + #"}],"artwork":[]}"#
+        let style = try model.predict(styleContext, images: [image], currentPage: Data([1]))
+        precondition(style.edits.count == (flag ? 1 : 0))
+        if flag {
+            precondition(field == "textBold" ? style.edits[0].textBold == true : style.edits[0].textItalic == true)
+            do { try style.validate(for: textContext.current); fatalError("Allowed an unknown/mixed style") }
+            catch PredictionError.invalidSuggestion { }
+        }
+    }
+}
 MockAPI.overrideSuggestion = nil
 do {
     try result.validate(for: context.current, images: [image, image])

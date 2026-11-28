@@ -62,6 +62,18 @@
             "items": {
               "type": "integer"
             }
+          },
+          "textBold": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "textItalic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
@@ -71,7 +83,9 @@
           "text",
           "duplicate",
           "fontSize",
-          "solidFillRGB"
+          "solidFillRGB",
+          "textBold",
+          "textItalic"
         ],
         "additionalProperties": false
       }

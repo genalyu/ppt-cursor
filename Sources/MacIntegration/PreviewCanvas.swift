@@ -91,7 +91,7 @@ public final class PreviewCanvas: NSView {
                 let color = fillColor(object.solidFillRGB, transparency: object.fillTransparency)
                 (color ?? NSColor(white: 0.94, alpha: 1)).setFill()
                 outlinePath(for: object, in: rect).fill()
-                drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize)
+                drawLabel(object.text ?? object.name, in: rect, fontSize: object.fontSize, bold: object.textBold, italic: object.textItalic)
                 NSGraphicsContext.restoreGraphicsState()
             }
         }
@@ -106,14 +106,14 @@ public final class PreviewCanvas: NSView {
             rotate(edit.rotation, around: rect)
             let original = slide.objects.first { $0.id == edit.id }
             let outline = outlinePath(for: original, in: rect)
-            if edit.text == nil, edit.fontSize == nil, edit.solidFillRGB == nil,
+            if edit.text == nil, edit.fontSize == nil, edit.solidFillRGB == nil, edit.textBold == nil, edit.textItalic == nil,
                (original?.kind == "shape type picture" || original?.kind == "shape type group" ||
                 (original?.width == p.width && original?.height == p.height)), let picture = picturePreviews[edit.id] {
                 picture.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.7, respectFlipped: true, hints: nil)
             } else {
                 let replacesText = edit.text.map { $0 != original?.text } ?? false
                 let changesSize = edit.fontSize.map { $0 != original?.fontSize } ?? false
-                if replacesText || changesSize {
+                if replacesText || changesSize || edit.textBold != nil || edit.textItalic != nil {
                     // Mask existing glyphs under the proposed text, including when clearing a box.
                     NSColor.white.setFill()
                     outline.fill()
@@ -121,7 +121,7 @@ public final class PreviewCanvas: NSView {
                 let color = fillColor(edit.solidFillRGB ?? original?.solidFillRGB, transparency: original?.fillTransparency)
                 (color ?? NSColor.systemTeal.withAlphaComponent(0.19)).setFill()
                 outline.fill()
-                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize)
+                drawLabel(edit.text ?? original?.text ?? original?.name ?? "", in: rect, fontSize: edit.fontSize ?? original?.fontSize, bold: edit.textBold ?? original?.textBold, italic: edit.textItalic ?? original?.textItalic)
             }
             outline.lineWidth = 2 / scale
             outline.setLineDash([6 / scale, 4 / scale], count: 2, phase: 0)
@@ -158,13 +158,14 @@ public final class PreviewCanvas: NSView {
                        blue: CGFloat(rgb[2]) / 255, alpha: 1 - (transparency ?? 0))
     }
 
-    private func drawLabel(_ text: String, in rect: NSRect, fontSize: Double?) {
+    private func drawLabel(_ text: String, in rect: NSRect, fontSize: Double?, bold: Bool? = nil, italic: Bool? = nil) {
         let content = rect.insetBy(dx: 6, dy: 4)
         guard content.width > 0, content.height > 0 else { return }
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSBezierPath(rect: content).addClip()
-        let font = NSFont.systemFont(ofSize: fontSize ?? min(18, max(8, rect.height * 0.3)), weight: .medium)
+        var font = NSFont.systemFont(ofSize: fontSize ?? min(18, max(8, rect.height * 0.3)), weight: bold == true ? .bold : .regular)
+        if italic == true { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
         (text as NSString).draw(in: content, withAttributes: [.font: font, .foregroundColor: NSColor.black])
     }
 }
