@@ -27,6 +27,7 @@ flowchart LR
 | `Sources/CursorApp/main.swift` | App lifecycle, session process, model configuration, user commands and phase feedback |
 | `SessionPhase.swift` | Shared worker event vocabulary, elapsed labels and explanations |
 | `DocumentFollowPolicy.swift` | Reject stale document observations and transient staging-document activations |
+| `PreviewPlacement.swift` | Keep the floating preview and controls in the visible lower-left of the PowerPoint window |
 | `StagedPreview.swift` | Display proposal, suspend on focus changes, route acceptance and recheck before applying |
 | `Sources/MacIntegration` | PowerPoint snapshots and guarded native writeback, with rollback checks |
 | `Scripts/stage-drawing.py` | Context, provider calls, untrusted DrawingML validation, staged PPTX, rendering and session recovery |

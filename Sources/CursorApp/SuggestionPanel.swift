@@ -6,6 +6,7 @@ final class SuggestionPanel: NSPanel {
     private let confirm = NSButton()
     private let skip = NSButton()
     private var sourceURL: URL?
+    private let alignLeft: Bool
 
     @objc private func openSource() {
         if let sourceURL { NSWorkspace.shared.open(sourceURL) }
@@ -24,8 +25,9 @@ final class SuggestionPanel: NSPanel {
     }
 
     init(summary: String, shortcutLabel: String?, owner: NSObject, accept: Selector, dismiss: Selector,
-         page: NSRect, canAccept: Bool = true, actionTitle: String? = nil, sourceURL: URL? = nil) {
-        let width = min(420, max(240, page.width - 16))
+         page: NSRect, canAccept: Bool = true, actionTitle: String? = nil, sourceURL: URL? = nil, alignLeft: Bool = false) {
+        self.alignLeft = alignLeft
+        let width = min(420, max(240, page.width - (alignLeft ? 0 : 16)))
         let size = NSSize(width: width, height: 84)
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
@@ -74,10 +76,10 @@ final class SuggestionPanel: NSPanel {
 
     func position(at page: NSRect) {
         let displays = NSScreen.screens.map { $0.visibleFrame }
-        setFrameOrigin(Self.origin(for: page, panel: frame.size, displays: displays))
+        setFrameOrigin(Self.origin(for: page, panel: frame.size, displays: displays, alignLeft: alignLeft))
     }
 
-    static func origin(for page: NSRect, panel: NSSize, displays: [NSRect]) -> NSPoint {
+    static func origin(for page: NSRect, panel: NSSize, displays: [NSRect], alignLeft: Bool = false) -> NSPoint {
         func coveredArea(_ display: NSRect) -> CGFloat {
             let overlap = display.intersection(page)
             return overlap.isNull ? 0 : overlap.width * overlap.height
@@ -85,7 +87,7 @@ final class SuggestionPanel: NSPanel {
         let display = displays.max { coveredArea($0) < coveredArea($1) } ?? page
         let above = page.maxY + 6
         let y = above + panel.height <= display.maxY ? above : page.maxY - panel.height - 6
-        return NSPoint(x: max(display.minX, min(page.maxX - panel.width - 6, display.maxX - panel.width)),
+        return NSPoint(x: max(display.minX, min(alignLeft ? page.minX : page.maxX - panel.width - 6, display.maxX - panel.width)),
                        y: max(display.minY, min(y, display.maxY - panel.height)))
     }
 }

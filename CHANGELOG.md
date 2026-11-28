@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 41
+
+- Keep the floating preview in the lower-left of the PowerPoint window, with acceptance controls aligned directly above it. The card follows window movement and stays inside the visible display.
+- Use the complete proposed slide thumbnail instead of covering the central editing canvas. Native-session preview positioning no longer needs image-based canvas detection.
+- Restore a bounded control-window content width when showing a long request or preview summary.
+- Verified two explicit API text requests, native acceptance and continuation. The second used the new lower-left preview process and reused the already-unlocked connection without another authorization step.
+
 ## 0.1.0 preview — build 40
 
 - Add an explicit editing-request field beside automatic suggestions. Requests are scoped to the captured document/page, keep the normal preview/acceptance boundary and return to automatic collaboration after acceptance.

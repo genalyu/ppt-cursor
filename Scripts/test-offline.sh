@@ -18,6 +18,7 @@ python3 Scripts/test-checkpoints.py
 python3 Scripts/test-web-assets.py
 ./Scripts/test-session-status.sh
 ./Scripts/test-model-connection.sh
+./Scripts/test-preview-placement.sh
 ./Scripts/test-document-follow.sh
 ./Scripts/test-api-prediction.sh
 ./Scripts/test-prediction-cancellation.sh

@@ -27,7 +27,7 @@ An edited replay of real model previews: five actual accepted edits and an auton
 - Continue after acceptance; recover accepted unsaved objects across worker restarts using bounded local checkpoints.
 - Keep using the control window while macOS waits for Keychain authorization; an existing in-memory connection does not need another key read or rewrite.
 
-Complex replacements may require saving a suggested copy. Overlay detection can fall back to a thumbnail. Neither a preview nor an automated test guarantees the model's edit is appropriate: review it before accepting.
+Complex replacements may require saving a suggested copy. The floating preview stays in the lower-left of the PowerPoint window, with acceptance controls above it. Review each proposed edit before accepting.
 
 ## Download
 
@@ -62,6 +62,8 @@ Transient errors and empty proposals retry with 15/30/60-second backoff; authori
 ## Performance and verification
 
 A measured geometry-render example took **0.103 seconds**, versus **2.998 seconds** with LibreOffice on the same machine. This is one rendering-stage measurement, **not end-to-end latency**. Text, new shapes and images still need full rendering. Model response latency depends on the provider, model and context. Image search adds network work and a second model call.
+
+Two real qwen4-max requested-text edits took **2.106 / 1.793 seconds** for the model and **2.636 / 2.621 seconds** for rendering. Both used compact text proposals and were accepted in PowerPoint. These are fixture-specific samples, excluding user review/background waiting, not a general latency guarantee.
 
 [Validation notes](docs/QA-2026-11-28.md) distinguish mocked regressions from live provider requests and actual PowerPoint writes. [Quality roadmap](docs/PRODUCT-PLAN.md).
 

@@ -18,7 +18,7 @@ enum StagedPreview {
             if diagnostics { FileHandle.standardError.write(Data(("preview: " + event + "\n").utf8)) }
         }
         let baseline = try JSONDecoder().decode(SlideSnapshot.self, from: Data(contentsOf: directory.appendingPathComponent("baseline.json")))
-        guard let image = NSImage(contentsOf: directory.appendingPathComponent("overlay.png")),
+        guard let artwork = NSImage(contentsOf: directory.appendingPathComponent("after.png")),
               let powerpoint = NSWorkspace.shared.frontmostApplication,
               powerpoint.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint",
               let window = PowerPointWindow.front(of: powerpoint),
@@ -28,8 +28,6 @@ enum StagedPreview {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let aspect = baseline.width / baseline.height
-        let canvas = PageLocator.locate(in: window, aspect: aspect)
-        let thumbnail = canvas == nil
         let geometryPreview = FileManager.default.fileExists(atPath: directory.appendingPathComponent("geometry-preview").path)
         let controlDirectory = ProcessInfo.processInfo.environment["PPT_CURSOR_CONTROL_DIRECTORY"].map { URL(fileURLWithPath: $0) }
         func consume(_ name: String) -> Bool {
@@ -42,26 +40,22 @@ enum StagedPreview {
         _ = consume("accept-preview")
         _ = consume("dismiss-preview")
         func locate(_ current: PowerPointWindow) -> NSRect? {
-            if thumbnail {
-                let width = min(420, current.frame.width * 0.45, current.frame.height * 0.45 * aspect)
-                return NSRect(x: current.frame.maxX - width - 16, y: current.frame.minY + 40,
-                              width: width, height: width / aspect)
+            let display = NSScreen.screens.map(\.visibleFrame).max {
+                func area(_ screen: NSRect) -> CGFloat {
+                    let overlap = screen.intersection(current.frame)
+                    return overlap.isNull ? 0 : overlap.width * overlap.height
+                }
+                return area($0) < area($1)
             }
-            return PageLocator.locate(in: current, aspect: aspect)
+            return PreviewPlacement.lowerLeft(window: current.frame, aspect: aspect, display: display)
         }
-        guard let frame = canvas ?? locate(window) else { throw CocoaError(.userCancelled) }
-        let artwork: NSImage
-        if thumbnail {
-            guard let page = NSImage(contentsOf: directory.appendingPathComponent("after.png")) else {
-                throw CocoaError(.fileReadCorruptFile)
-            }
-            artwork = page
-        } else { artwork = image }
+        guard let frame = locate(window) else { throw CocoaError(.userCancelled) }
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = thumbnail
+        panel.title = "PPT Cursor 左下角预览"
+        panel.hasShadow = true
         panel.ignoresMouseEvents = true
         panel.level = .floating
         let view = NSImageView(frame: NSRect(origin: .zero, size: frame.size))
@@ -180,12 +174,23 @@ enum StagedPreview {
         let summary = proposal?.summary ?? (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? ""
         struct AssetSource: Decodable { let sourceURL: URL }
         let source = try? JSONDecoder().decode(AssetSource.self, from: Data(contentsOf: directory.appendingPathComponent("asset-source.json")))
-        let controls = SuggestionPanel(summary: (geometryPreview ? "位置/尺寸示意 · " : (thumbnail ? "修改后预览 · " : "")) + (!direct ? "可保存为副本 · " : "") + summary,
+        let controls = SuggestionPanel(summary: (geometryPreview ? "位置/尺寸示意 · " : "修改后预览 · ") + (!direct ? "可保存为副本 · " : "") + summary,
                                        shortcutLabel: shortcutLabel, owner: actions,
                                        accept: #selector(StagedActions.accept), dismiss: #selector(StagedActions.dismiss),
-                                       page: frame, actionTitle: !direct ? "另存建议副本…" : nil, sourceURL: source?.sourceURL)
+                                       page: frame, actionTitle: !direct ? "另存建议副本…" : nil, sourceURL: source?.sourceURL, alignLeft: true)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        func recordLayout(window: NSRect) {
+            func rect(_ frame: NSRect) -> [String: CGFloat] {
+                ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height]
+            }
+            let layout: [String: Any] = ["placement": "lower-left", "window": rect(window),
+                                         "preview": rect(panel.frame), "controls": rect(controls.frame)]
+            if let data = try? JSONSerialization.data(withJSONObject: layout) {
+                try? data.write(to: directory.appendingPathComponent("preview-layout.json"), options: .atomic)
+            }
+        }
+        recordLayout(window: window.frame)
         let previewInfo = ["direct": direct]
         if let data = try? JSONSerialization.data(withJSONObject: previewInfo) {
             try? data.write(to: directory.appendingPathComponent("preview-info.json"), options: .atomic)
@@ -251,8 +256,8 @@ enum StagedPreview {
             nextVerification = Date().addingTimeInterval(1)
             let generation = focusGeneration
             reading = true
+            let page = locate(current)
             DispatchQueue.global(qos: .userInitiated).async {
-                let page = locate(current)
                 let valid = (try? PowerPointBridge.capture()) == baseline
                 DispatchQueue.main.async {
                     reading = false
@@ -273,6 +278,7 @@ enum StagedPreview {
                         controls.position(at: page)
                         displayedPage = page
                         displayedWindow = current
+                        recordLayout(window: current.frame)
                     }
                     if hidden {
                         guard NSEvent.pressedMouseButtons == 0 else { return }

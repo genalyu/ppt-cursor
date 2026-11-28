@@ -115,6 +115,7 @@ final class SetupWindow: NSWindow {
         contentView = scroll
         container.addSubview(stack)
         NSLayoutConstraint.activate([
+            stack.widthAnchor.constraint(equalToConstant: 512),
             container.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
             stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
