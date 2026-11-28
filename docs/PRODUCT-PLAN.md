@@ -17,11 +17,11 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [ ] Control window provides readable progress, a current preview, accept/dismiss, pause/retry and recovery actions.
 - [ ] Model setup, inaccessible credentials and dependencies have actionable feedback.
 - [ ] Cancellation, switching documents, stale responses and failures preserve user work.
-- [ ] Regression checks and packaging pass locally and on CI.
-- [ ] Current installable preview, clear prerequisites, compatibility table and troubleshooting.
+- [x] Regression checks and packaging pass locally and on CI for build 38.
+- [x] Current Apple Silicon preview download, prerequisites and troubleshooting. Intel builds and a broader compatibility matrix remain open.
 - [x] Bilingual README with concise value proposition, verified preview renders, workflow and installation. Native screenshots remain to be added.
-- [ ] Short promotional video and a longer real workflow demo; label edits/time compression and never invent runtime behavior.
-- [ ] Reproducible media sources, accessible captions, asset credits and downloadable public demo deck.
+- [x] Short promotional video and longer demo replay, with source provenance and explicit non-real-time labelling. Native screen-recorded walkthrough remains open.
+- [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [ ] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
 ## Benchmark

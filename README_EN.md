@@ -27,6 +27,12 @@ An edited replay of real model previews: five actual accepted edits and an auton
 
 Complex replacements may require saving a suggested copy. Overlay detection can fall back to a thumbnail. Neither a preview nor an automated test guarantees the model's edit is appropriate: review it before accepting.
 
+## Download
+
+[Apple Silicon preview v0.1.0-preview.38](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.38/PPT-Cursor-macOS-arm64.zip) · [Release notes and checksum](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.38)
+
+Unzip and open `PPT Cursor.app`. PowerPoint, Python 3 with Pillow and LibreOffice are still required locally. Configure the model in the app. Intel Mac users currently need a source build. This package passed CI tests and packaging checks; it is not Apple-notarized.
+
 ## Build and run
 
 Install Xcode Command Line Tools (Swift 5.9+), Python 3, PowerPoint and LibreOffice, then:
@@ -42,7 +48,7 @@ pip install -r requirements.txt
 open "dist/PPT Cursor.app"
 ```
 
-[Historical preview downloads](https://github.com/genalyu/ppt-cursor/releases) may lag behind `main`. Check the release's commit and dependencies. Source builds discover the repository's `.venv`; relocated apps require a Python installation with Pillow in a supported location.
+[Other releases](https://github.com/genalyu/ppt-cursor/releases): check the commit, architecture and dependencies. Source builds discover the repository's `.venv`; relocated apps require a Python installation with Pillow in a supported location.
 
 1. Open a copy of [Tab-Demo.pptx](Examples/Tab-Demo.pptx) in PowerPoint.
 2. Configure Codex CLI, OpenAI or Alibaba Cloud Bailian in the model settings. API keys stay in macOS Keychain; Codex CLI must already be signed in.
