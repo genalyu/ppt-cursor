@@ -30,8 +30,8 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
 - The full explicit-request control-window submission/acceptance path passed twice through the API connection; the real CLI/model/staging path also passed. Continue covering broader edit types and longer sessions.
 - Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
-- Pause/quit now wait through writeback and checkpoint persistence; real-process and isolated-controller tests cover shutdown and serialized restart. Live document-switch/cancellation coverage remains open.
-- Failed acceptance now retains retry controls, with a real rejection → retry → acceptance → continuation test. Keep covering document switches and cancellation under real editing.
+- Pause/quit now wait through writeback and checkpoint persistence; real-process and isolated-controller tests cover shutdown and serialized restart. A live scoped request was cancelled after switching between public documents with the same slide ID; neither the request nor a write leaked to the target. Physical pause during a real write and automatic document-follow coverage remain open.
+- Failed acceptance now retains retry controls, with a real rejection → retry → acceptance → continuation test. Returning to the source after cross-document cancellation also passed a fresh requested edit, native acceptance and automatic continuation without reauthorizing the provider.
 - Uniform bold/italic now pass native writeback and real-provider acceptance. Broaden text color/alignment and mixed-run editing, add native UI footage and finish the remaining live gates above.
 - Reuse the already-unlocked running connection while the owner is away; avoid restarts or credential operations requiring their interaction.
 
