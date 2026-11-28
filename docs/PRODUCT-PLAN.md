@@ -17,7 +17,7 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Control window provides readable progress, a current preview, accept/dismiss, pause/retry and recovery actions.
 - [ ] Model setup, inaccessible credentials and dependencies have actionable feedback.
 - [ ] Cancellation, switching documents, stale responses and failures preserve user work.
-- [x] Regression checks and packaging pass locally and on CI through build 42; downloaded release checksum, signature and worker/bridge-source matches verified.
+- [x] Regression checks and packaging pass locally and on CI through build 43; downloaded release checksum, signature and worker/bridge-source matches verified.
 - [x] Current Apple Silicon preview download, prerequisites and troubleshooting. Intel builds and a broader compatibility matrix remain open.
 - [x] Bilingual README with concise value proposition, verified preview renders, workflow and installation. Native screenshots remain to be added.
 - [x] Short promotional video and longer demo replay, with source provenance and explicit non-real-time labelling. Native screen-recorded walkthrough remains open.
