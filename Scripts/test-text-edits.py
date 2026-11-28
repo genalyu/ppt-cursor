@@ -140,6 +140,11 @@ class TextEditTests(unittest.TestCase):
                 patch.object(staging, "render_pair", side_effect=render):
             staging.predict_preview(self.source, "256", history, output, api={"model": "test"})
         self.assertEqual(json.loads((output / "accept.json").read_text())["edits"][0]["fontSize"], 28)
+        metrics = json.loads((output / "metrics.json").read_text())
+        self.assertEqual(metrics["proposalKind"], "textEdit")
+        self.assertEqual(len(metrics["modelSeconds"]), 1)
+        self.assertFalse(metrics["requestedEdit"])
+        self.assertNotIn("Research", json.dumps(metrics))
         schema = api.call_args.args[-1]
         self.assertIn("textEdit", schema["required"])
         self.assertFalse(schema["properties"]["textEdit"]["additionalProperties"])

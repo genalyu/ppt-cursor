@@ -1,7 +1,13 @@
 import Foundation
 
+struct NativeEditInstruction: Encodable {
+    let text: String
+    let document: String
+    let slideID: Int
+}
+
 enum NativeSessionLauncher {
-    static func process(script: URL, document: URL, codex: URL?, references: [(url: URL, name: String)], includePage: Bool) -> Process {
+    static func process(script: URL, document: URL, codex: URL?, references: [(url: URL, name: String)], includePage: Bool, instructionFile: URL? = nil) -> Process {
         let process = Process()
         var environment = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -31,6 +37,7 @@ enum NativeSessionLauncher {
         """
         process.arguments = ["-c", launch, "ppt-cursor", script.path, "session", document.path]
             + (includePage ? ["--include-page"] : [])
+            + (instructionFile.map { ["--instruction-file", $0.path] } ?? [])
             + references.flatMap { ["--named-reference", $0.url.path, $0.name] }
         return process
     }

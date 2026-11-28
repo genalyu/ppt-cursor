@@ -5,6 +5,7 @@ PPT Cursor is a macOS menu-bar app with a Swift/AppKit controller and a Python s
 ```mermaid
 flowchart LR
     U[User edits PowerPoint] --> S[Read settled slide snapshot]
+    I[Explicit user request bound to document and page] --> M
     S --> H[Bounded content history]
     H --> M[Selected model]
     M -->|optional query| W[Commons search and validated candidates]
@@ -34,6 +35,9 @@ flowchart LR
 ## Important boundaries
 
 - The app sends API settings through the worker's standard input. Keys are not command arguments, proposal files or logs.
+- Explicit editing requests use a private session file and are bound to the captured document/page before inference. A page switch cancels the request. Acceptance consumes it and restores automatic suggestions; dismissal may request another candidate for the same instruction.
+- Keychain reads and writes run off the AppKit event loop. Reusing a live connection avoids another key read/write. Authorization failure keeps the previous connection preferences intact.
+- Preview `metrics.json` records proposal format and model/search/render durations, without slide contents, prompts or credentials. It shares the temporary preview lifecycle rather than creating persistent telemetry.
 - A phase event describes real work. The control window and menu bar use the same phase/elapsed function. Session diagnostics contain phase names and timestamps, not API keys or slide text.
 - Acceptance is bound to the displayed proposal and current slide baseline. Faster rendering must never weaken that comparison.
 - PowerPoint temporarily opens a staged deck to copy native content. The document follower must not treat that as the user's navigation: writeback invalidates pending observations and suspends following; a subsequent switch requires repeated observation.

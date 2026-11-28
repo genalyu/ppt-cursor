@@ -24,11 +24,11 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
-## Current priorities after build 39
+## Current priorities after build 40 implementation
 
-- Broaden real-provider timing samples beyond the verified six-second font-size scenario; retain the proposal format and phase durations without logging slide contents.
-- Keep model-connection authorization off the UI thread and show an explicit pending state; the current Save Connection flow can wait on the system prompt.
-- Add an explicit user instruction workflow alongside automatic suggestions, with the same preview and acceptance boundary.
+- Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
+- Verify the full explicit-request control-window submission/acceptance path after owner-operated Keychain authorization. The real CLI/model/staging path has passed.
+- Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
 - Broaden direct native formatting and verify it in PowerPoint, then add native UI footage and finish the remaining live gates above.
 
 ## Benchmark

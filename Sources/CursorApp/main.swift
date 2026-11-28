@@ -7,7 +7,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint), accept: #selector(accept), dismiss: #selector(dismiss))
+    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint), accept: #selector(accept), dismiss: #selector(dismiss), submitInstruction: #selector(submitInstruction))
     private var documentLookup: UUID?
     private var awaitingDocument = false
     private var followsActiveDocument = true
@@ -24,6 +24,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var suggestionPanel: SuggestionPanel?
     private var api: APISettings?
     private var modelLookup: UUID?
+    private var connectingModel = false
     private var images: [ReferenceImage] = []
     private var predictWithImportedImages = false
     private var imageImport: Task<Void, Never>?
@@ -78,7 +79,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                                                                      object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
             if self.frontmost { self.poll(); return }
-            guard self.monitoring else { return }
+            guard self.monitoring, !self.connectingModel else { return }
             // An already submitted prediction uses an immutable snapshot. Its result
             // stays hidden until a foreground capture confirms that snapshot again.
             if self.inference != nil, self.inFlightContext != nil, self.pending == nil { return }
@@ -172,6 +173,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func chooseNativeDocument() {
+        guard !connectingModel else { message("请先处理系统钥匙串授权弹窗"); return }
         documentLookup = nil
         guard nativeProcess == nil else { message("请先停止当前开放式预测"); return }
         let chooser = NSOpenPanel()
@@ -182,7 +184,8 @@ final class Controller: NSObject, NSApplicationDelegate {
         startNativeSession(document)
     }
 
-    private func startNativeSession(_ document: URL) {
+    private func startNativeSession(_ document: URL, instruction: NativeEditInstruction? = nil) {
+        guard !connectingModel else { return }
         defer { updateSessionControls() }
         setPhase(.read)
         awaitingDocument = false
@@ -208,7 +211,16 @@ final class Controller: NSObject, NSApplicationDelegate {
                 try image.png.write(to: url)
                 return (url, image.name)
             }
-            let process = NativeSessionLauncher.process(script: script, document: document, codex: CodexInstallation.executable(), references: references, includePage: setup.includePage.state == .on)
+            var instructionFile: URL?
+            if let instruction {
+                let file = session.appendingPathComponent("instruction.json")
+                let data = try JSONEncoder().encode(instruction)
+                guard FileManager.default.createFile(atPath: file.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                instructionFile = file
+            }
+            let process = NativeSessionLauncher.process(script: script, document: document, codex: CodexInstallation.executable(), references: references, includePage: setup.includePage.state == .on, instructionFile: instructionFile)
             if let api {
                 let settings = try JSONEncoder().encode(api)
                 guard settings.count <= 4096 else { message("模型名称或密钥过长"); try? FileManager.default.removeItem(at: session); return }
@@ -240,6 +252,9 @@ final class Controller: NSObject, NSApplicationDelegate {
                     let status = lastLine
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
+                        if status.hasPrefix("已采纳，"), let instruction {
+                            self.setup.clearInstruction(ifMatching: instruction.text)
+                        }
                         if status.hasPrefix("PPT_CURSOR_PREVIEW=") {
                             let directory = URL(fileURLWithPath: String(status.dropFirst("PPT_CURSOR_PREVIEW=".count))).resolvingSymlinksInPath()
                             guard directory.path.hasPrefix(session.resolvingSymlinksInPath().path + "/"),
@@ -284,7 +299,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                     self.nativeDirectory = nil
                     self.nativeDocument = nil
                     self.updateSessionControls()
-                    self.setPhase(process.terminationStatus == 0 ? .paused : .error)
+                    self.setPhase(process.terminationStatus == 0 ? .paused : (process.terminationStatus == 3 ? .cancelled : .error))
                     self.message(finalStatus)
                 }
             }
@@ -318,6 +333,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let active = nativeProcess != nil || awaitingDocument || documentLookup != nil || monitoring
         toggle.title = active ? "暂停预测" : "开始预测"
         setup.setRunning(active, canRetry: nativeProcess != nil || failedContext != nil, model: api?.model ?? (ModelSettings.hasSavedConnection ? "模型密钥待授权" : "Codex CLI"), document: nativeDocument?.lastPathComponent)
+        setup.setConnecting(connectingModel)
         retryItem.isHidden = nativeProcess == nil && failedContext == nil
         retryItem.title = nativeProcess != nil ? "重新预测当前页" : "重试上次预测"
     }
@@ -326,6 +342,48 @@ final class Controller: NSObject, NSApplicationDelegate {
         guard let directory = nativeDirectory else { return }
         do { try Data().write(to: directory.appendingPathComponent(command), options: .atomic) }
         catch { message("操作未发送：" + error.localizedDescription) }
+    }
+
+    @objc private func submitInstruction() {
+        guard !connectingModel, modelLookup == nil else { message("请先完成模型连接"); return }
+        guard phase != .apply, !applying else { message("请等当前修改写入完成后再提交要求"); return }
+        let text = setup.requestedInstruction
+        guard !text.isEmpty, text.unicodeScalars.count <= 2000 else {
+            message("请输入 1–2000 字的本次修改要求"); return
+        }
+        guard api != nil || !ModelSettings.hasSavedConnection else {
+            setPhase(.error); message("请先在模型连接中解锁已保存的密钥"); return
+        }
+        stopNativeSession()
+        if monitoring { monitoring = false; invalidate() }
+        let request = UUID()
+        documentLookup = request
+        setPhase(.read)
+        message("正在将要求绑定到当前文稿和页面…")
+        updateSessionControls()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { () throws -> (URL, NativeEditInstruction) in
+                guard let snapshot = try PowerPointBridge.capture(),
+                      let document = try PowerPointBridge.currentDocumentURL() else {
+                    throw NSError(domain: "PPTCursor.Instruction", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "请先在 PowerPoint 中打开并保存本地 PPTX。"])
+                }
+                return (document, NativeEditInstruction(text: text, document: snapshot.document, slideID: snapshot.slideID))
+            }
+            DispatchQueue.main.async {
+                guard self.documentLookup == request else { return }
+                self.documentLookup = nil
+                switch result {
+                case .success(let (document, instruction)):
+                    self.followsActiveDocument = true
+                    self.startNativeSession(document, instruction: instruction)
+                case .failure(let error):
+                    self.setPhase(.failed)
+                    self.message(error.localizedDescription)
+                }
+                self.updateSessionControls()
+            }
+        }
     }
 
     @objc private func returnToPowerPoint() {
@@ -404,7 +462,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         }
     }
     private func invalidate() {
-        if nativeProcess == nil { setPhase(monitoring ? .read : .paused) }
+        if nativeProcess == nil && !connectingModel { setPhase(monitoring ? .read : .paused) }
         generation += 1
         inference?.cancel()
         inference = nil
@@ -448,6 +506,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func toggleMonitoring() {
+        guard !connectingModel else { message("请先处理系统钥匙串授权弹窗"); return }
         guard modelLookup == nil else { message("正在读取模型连接，请稍候"); return }
         if nativeProcess != nil || awaitingDocument || documentLookup != nil { stopNativeSession(); return }
         if !monitoring && locationRequest == nil { awaitCurrentDocument(); return }
@@ -484,21 +543,35 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func chooseModel() {
+        guard !connectingModel else { message("请先处理系统钥匙串授权弹窗"); return }
         guard let choice = ModelSettings.choose(current: api) else { return }
         modelLookup = nil
+        let document = nativeDocument
+        if nativeProcess != nil || awaitingDocument || documentLookup != nil { stopNativeSession() }
         let interrupted = waiting ?? inFlightContext ?? failedContext
         invalidate()
-        waiting = interrupted
-        switch choice {
-        case .cli: api = nil; message("已选择 Codex CLI")
-        case .api(let settings): api = settings; message("已选择 API 模型 " + settings.model)
-        }
-        refreshNativeSettings()
+        connectingModel = true
+        setPhase(.authorizing)
         updateSessionControls()
-        if monitoring, interrupted != nil {
-            message("模型连接已更新，正在重新核对幻灯片…")
-            NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
-            poll()
+        ModelSettings.resolve(choice) { [weak self] result in
+            guard let self else { return }
+            self.connectingModel = false
+            switch result {
+            case .failure(let error):
+                self.setPhase(.error)
+                self.message(error.localizedDescription)
+            case .success(let connection):
+                switch connection {
+                case .cli: self.api = nil
+                case .api(let settings): self.api = settings
+                }
+                self.waiting = interrupted
+                self.setPhase(.paused)
+                self.message("已选择 " + (self.api?.model ?? "Codex CLI"))
+                if let document { self.startNativeSession(document) }
+                else if self.monitoring, interrupted != nil { self.poll() }
+            }
+            self.updateSessionControls()
         }
     }
 
@@ -653,6 +726,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     private func poll() {
         refreshStatusTitle()
+        guard !connectingModel else { return }
         followPowerPointDocument()
         guard monitoring, frontmost, !reading, !applying else { return }
         // A held drag may pause between mouse movements. Sample the committed slide after release.

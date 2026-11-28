@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 40
+
+- Add an explicit editing-request field beside automatic suggestions. Requests are scoped to the captured document/page, keep the normal preview/acceptance boundary and return to automatic collaboration after acceptance.
+- Move interactive Keychain reads and writes off the UI thread. Show a waiting-for-authorization state, prevent duplicate submissions, retain the previous connection on failure and avoid re-reading/re-writing a key already in memory.
+- Make the control window scrollable and cap its expanded height to the visible screen, keeping the new request controls and preview reachable.
+- Add temporary content-free proposal-format and phase-duration metrics, plus regression coverage for authorization waits, failed/cached connections, request forwarding, page scope and acceptance consumption.
+
 ## 0.1.0 preview — build 39
 
 - Add compact `textEdit` proposals for text and uniform font-size changes. Local expansion preserves the original shape styling, then uses the existing preview and native equivalence checks.

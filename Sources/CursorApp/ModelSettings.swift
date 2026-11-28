@@ -4,6 +4,10 @@ import Security
 import LocalAuthentication
 
 enum ModelConnection { case cli, api(APISettings) }
+enum ModelConnectionRequest {
+    case cli
+    case api(base: String, model: String, typedKey: String, cachedSettings: APISettings?)
+}
 
 final class ModelSettings: NSObject {
     static let beijing = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -85,12 +89,45 @@ final class ModelSettings: NSObject {
         grid.row(at: 3).isHidden = !isBailian
     }
 
-    static func choose(current: APISettings?) -> ModelConnection? {
+    static func resolve(_ request: ModelConnectionRequest,
+                        preferences: UserDefaults = .standard,
+                        loadKey: @escaping (String) -> String? = { secret($0, interactive: true) },
+                        writeKey: @escaping (String, String, String) throws -> APISettings = { try save(base: $0, model: $1, key: $2) },
+                        completion: @escaping (Result<ModelConnection, Error>) -> Void) {
+        // Security.framework may wait for its own authorization UI. Keep both
+        // reads and writes off AppKit's event loop.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result<ModelConnection, Error> {
+                switch request {
+                case .cli:
+                    preferences.removeObject(forKey: "modelBase")
+                    return .cli
+                case let .api(base, model, typedKey, cachedSettings):
+                    if !typedKey.isEmpty { return .api(try writeKey(base, model, typedKey)) }
+                    let settings: APISettings
+                    if let cachedSettings { settings = cachedSettings.selecting(model: model) }
+                    else if let key = loadKey(base), !key.isEmpty {
+                        settings = APISettings(model: model, key: key, baseURL: base)
+                    } else {
+                        throw NSError(domain: "PPTCursor.ModelConnection", code: 1,
+                                      userInfo: [NSLocalizedDescriptionKey: "无法读取已保存密钥。请在系统钥匙串中允许访问，或在模型连接中填写密钥。"])
+                    }
+                    // Reusing an existing key needs no second Keychain write/prompt.
+                    preferences.set(base, forKey: "modelBase")
+                    preferences.set(model, forKey: "modelName")
+                    return .api(settings)
+                }
+            }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    static func choose(current: APISettings?) -> ModelConnectionRequest? {
         let form = ModelSettings()
         return withExtendedLifetime(form) { form.show(current) }
     }
 
-    private func show(_ settings: APISettings?) -> ModelConnection? {
+    private func show(_ settings: APISettings?) -> ModelConnectionRequest? {
         current = settings
         if current == nil, let base = Self.defaults.string(forKey: "modelBase"), APISettings.accepts(baseURL: base) {
             current = APISettings(model: Self.defaults.string(forKey: "modelName") ?? "qwen4-max", key: "", baseURL: base)
@@ -128,7 +165,6 @@ final class ModelSettings: NSObject {
         changeProvider()
         while panel.runModal() == .alertFirstButtonReturn {
             if provider.indexOfSelectedItem == 2 {
-                Self.defaults.removeObject(forKey: "modelBase")
                 return .cli
             }
             let base = endpoint.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -139,12 +175,8 @@ final class ModelSettings: NSObject {
                 continue
             }
             let typed = key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let value = typed.isEmpty ? Self.secret(base, interactive: true) : typed else {
-                panel.informativeText = "无法读取此连接的密钥。请完成系统钥匙串授权，或填写 API 密钥。"
-                continue
-            }
-            do { return .api(try Self.save(base: base, model: name, key: value)) }
-            catch { panel.informativeText = "无法保存到钥匙串：" + error.localizedDescription }
+            let cached = settings.flatMap { $0.baseURL == base ? $0 : nil }
+            return .api(base: base, model: name, typedKey: typed, cachedSettings: cached)
         }
         return nil
     }

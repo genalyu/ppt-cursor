@@ -11,11 +11,13 @@ else
 fi
 python3 Scripts/test-staged-api.py
 python3 Scripts/test-text-edits.py
+python3 Scripts/test-instructions.py
 python3 Scripts/test-staged-history.py
 python3 Scripts/test-fast-preview.py
 python3 Scripts/test-checkpoints.py
 python3 Scripts/test-web-assets.py
 ./Scripts/test-session-status.sh
+./Scripts/test-model-connection.sh
 ./Scripts/test-document-follow.sh
 ./Scripts/test-api-prediction.sh
 ./Scripts/test-prediction-cancellation.sh

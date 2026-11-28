@@ -18,12 +18,14 @@ An edited replay of real model previews: five actual accepted edits and an auton
 
 ## Features
 
+- Give an explicit editing request for the current slide, then preview and accept the proposed change.
 - Move, resize and rotate shapes, with a fast geometry preview.
 - Edit text and supported native shapes; compose grouped visuals.
 - Let the model search public-domain/CC0 images on Wikimedia Commons, choose a real candidate and preview its placement. Uploaded references are optional.
 - Review the current suggestion in the control window, accept or dismiss it, pause or retry.
 - Follow live prediction, image search, rendering and writeback phases with elapsed time.
 - Continue after acceptance; recover accepted unsaved objects across worker restarts using bounded local checkpoints.
+- Keep using the control window while macOS waits for Keychain authorization; an existing in-memory connection does not need another key read or rewrite.
 
 Complex replacements may require saving a suggested copy. Overlay detection can fall back to a thumbnail. Neither a preview nor an automated test guarantees the model's edit is appropriate: review it before accepting.
 

@@ -15,6 +15,7 @@ precondition(SessionPhase.predict.title(elapsed: 12.9) == "预测 12s")
 precondition(SessionPhase.search.title(elapsed: 3) == "搜素材 3s")
 precondition(SessionPhase.paused.title(elapsed: 400) == "已暂停")
 precondition(SessionPhase.preview.title(elapsed: 100) == "待采纳")
+precondition(SessionPhase.authorizing.title(elapsed: 100) == "等待授权")
 print("Session phases, worker compatibility and elapsed-time labels passed")
 SWIFT
 swiftc Sources/CursorApp/SessionPhase.swift "$tmp/main.swift" -o "$tmp/check"
