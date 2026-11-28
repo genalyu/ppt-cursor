@@ -10,9 +10,9 @@ You keep the final say. Every write rechecks the document and slide baseline.
 
 ## See the workflow
 
-[18-second overview](docs/media/promo.mp4) · [62-second demo](docs/media/demo.mp4) · [Captions and credits](docs/media/README.md)
+[18-second overview](docs/media/promo.mp4) · [74-second demo](docs/media/demo.mp4) · [Captions and credits](docs/media/README.md)
 
-An edited replay of real model previews: five actual accepted edits and an autonomously searched image. **Not a real-time screen recording; scene durations are not latency measurements.**
+An edited replay of real model previews: five consecutive accepted edits, an explicit text-edit request, and an autonomously searched image. **Not a real-time screen recording; scene durations are not latency measurements.**
 
 [![PPT Cursor — real model preview replay](docs/media/demo.gif)](docs/media/demo.mp4)
 
@@ -31,7 +31,7 @@ Complex replacements may require saving a suggested copy. The floating preview s
 
 ## Download
 
-[Apple Silicon preview v0.1.0-preview.39](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.39/PPT-Cursor-macOS-arm64.zip) · [Release notes and checksum](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.39)
+[Apple Silicon preview v0.1.0-preview.41](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.41/PPT-Cursor-macOS-arm64.zip) · [Release notes and checksum](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.41)
 
 Unzip and open `PPT Cursor.app`. PowerPoint, Python 3 with Pillow and LibreOffice are still required locally. Configure the model in the app. Intel Mac users currently need a source build. This package passed CI tests and packaging checks; it is not Apple-notarized.
 

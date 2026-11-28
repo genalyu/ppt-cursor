@@ -47,4 +47,4 @@ jobs:
           sha256sum --check *.sha256
           gh release create "$TAG" *.zip *.sha256 --repo "$REPOSITORY" --verify-tag --prerelease \
             --title "PPT Cursor $TAG" \
-            --notes "macOS preview for the CPU architecture named in the ZIP. Requires PowerPoint plus a signed-in Codex CLI or an OpenAI API key. The app is ad-hoc signed and has not been notarized by Apple."
+            --notes "macOS preview for the CPU architecture named in the ZIP. Requires macOS 13+, desktop PowerPoint, Python/Pillow, LibreOffice, and either a signed-in Codex CLI or a supported API connection. The app is ad-hoc signed and has not been notarized by Apple."

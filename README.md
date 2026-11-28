@@ -22,9 +22,9 @@
 
 ## 看看协作过程
 
-[18 秒项目介绍](docs/media/promo.mp4) · [62 秒演示回放](docs/media/demo.mp4) · [字幕与素材来源](docs/media/README.md)
+[18 秒项目介绍](docs/media/promo.mp4) · [74 秒演示回放](docs/media/demo.mp4) · [字幕与素材来源](docs/media/README.md)
 
-下面是本次真实模型输出的剪辑回放，包含五轮实际采纳和自主搜索配图。**不是实时录屏；播放时长不代表响应速度。**
+下面是本次真实模型输出的剪辑回放，包含五轮连续采纳、按明确要求修改文字，以及自主搜索配图。**不是实时录屏；播放时长不代表响应速度。**
 
 [![PPT Cursor — real model preview replay](docs/media/demo.gif)](docs/media/demo.mp4)
 
@@ -46,7 +46,7 @@
 
 ### 下载预览版
 
-[下载 v0.1.0-preview.39 · Apple Silicon](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.39/PPT-Cursor-macOS-arm64.zip) · [发布说明与校验文件](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.39)
+[下载 v0.1.0-preview.41 · Apple Silicon](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.41/PPT-Cursor-macOS-arm64.zip) · [发布说明与校验文件](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.41)
 
 解压后打开 `PPT Cursor.app`。仍需本机 PowerPoint、Python 3 + Pillow 和 LibreOffice；模型连接在应用内配置。Intel Mac 当前请从源码构建。此包已通过 CI 测试和打包校验，但尚未 Apple 公证。
 

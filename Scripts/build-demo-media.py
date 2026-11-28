@@ -25,8 +25,10 @@ SCENES = [
     ('process-03.png', '04 / REFINE', 'Build on\nyour decisions.', 'A third suggestion groups\nthe stages into outlined cards.', 6),
     ('process-04.png', '05 / ADD HIERARCHY', 'Keep going\nbeyond three.', 'A fourth accepted suggestion\nadds a heading to the slide.', 6),
     ('process-05.png', '06 / FIVE REAL WRITES', 'Preview. Accept.\nContinue.', 'Five consecutive accepted edits.\nPause and resume were tested\nwith the original file unsaved.', 7),
-    ('solar-before.png', '07 / FIND A REAL IMAGE', 'No image upload\nrequired.', 'The model chooses search terms\nfrom the solar-energy slide.', 6),
-    ('solar-after.png', '08 / WEB ASSETS', 'Search. Review.\nInsert.', 'A Commons public-domain photo\nwas inserted into PowerPoint.\nSource and credit stayed attached.', 8),
+    ('request-before.png', '07 / GIVE DIRECTION', 'Tell AI exactly\nwhat to change.', 'Request: change Research to\nDiscover. Keep the other text\nand formatting unchanged.', 6),
+    ('request-after.png', '08 / YOUR REQUEST', 'The exact words.\nThe same styling.', 'The requested text was changed\nand accepted in PowerPoint.\nAutomatic suggestions continued.', 6),
+    ('solar-before.png', '09 / FIND A REAL IMAGE', 'No image upload\nrequired.', 'The model chooses search terms\nfrom the solar-energy slide.', 6),
+    ('solar-after.png', '10 / WEB ASSETS', 'Search. Review.\nInsert.', 'A Commons public-domain photo\nwas inserted into PowerPoint.\nSource and credit stayed attached.', 8),
     ('process-05.png', 'PPT CURSOR / OPEN SOURCE', 'Your slides.\nYour final say.', 'macOS preview / MIT\ngithub.com/genalyu/ppt-cursor\nSetup and limitations in README.', 6),
 ]
 
@@ -47,7 +49,7 @@ def render(name, scenes, scratch):
         folder=scratch/f'{name}-{index}';folder.mkdir()
         for label,copy in [('kicker',kicker),('title',title),('body',body)]:
             (folder/f'{label}.txt').write_text(copy)
-        full = asset.startswith('solar')
+        full = asset.startswith(('solar', 'request'))
         art = 'scale=624:468,pad=760:470:68:1:color=white' if full else 'crop=1320:620:60:100,scale=740:348,pad=760:470:10:61:color=white'
         # Product labels surround unaltered preview pixels; process scenes zoom in.
         drawing=(f'[0:v]{art}[slide];[1:v][slide]overlay=470:140,'
@@ -73,7 +75,7 @@ def render(name, scenes, scratch):
 with tempfile.TemporaryDirectory(prefix='ppt-media-') as temp:
     scratch=Path(temp)
     render('demo',SCENES,scratch)
-    promo=[(*SCENES[index][:4],3) for index in [0,2,4,6,8,9]]
+    promo=[(*SCENES[index][:4],3) for index in [0,2,6,8,10,11]]
     render('promo',promo,scratch)
     run(['ffmpeg','-y','-hide_banner','-loglevel','error','-ss','0.5','-i',str(MEDIA/'promo.mp4'),'-frames:v','1',str(MEDIA/'poster.png')])
     run(['ffmpeg','-y','-hide_banner','-loglevel','error','-i',str(MEDIA/'promo.mp4'),'-filter_complex',
