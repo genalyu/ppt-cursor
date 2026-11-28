@@ -13,6 +13,7 @@ enum SessionPhase: String, CaseIterable {
     case retry = "等待重试"
     case save = "待保存"
     case ready = "待编辑"
+    case stopping = "正在结束"
     case paused = "已暂停"
     case error = "连接异常"
     case environment = "环境未就绪"
@@ -50,6 +51,7 @@ enum SessionPhase: String, CaseIterable {
         case .retry: return "稍后自动重试，也可以点击重新预测。"
         case .save: return "请保存当前文稿，保存后自动继续。"
         case .ready: return "继续编辑，AI 会跟随你的改动。"
+        case .stopping: return "正在结束会话；本次写入和恢复缓存完成后停止。"
         case .paused: return "点击开始预测，继续与 AI 协作。"
         case .environment: return "点击环境检查，查看缺少的本机组件与安装步骤。"
         case .error: return "请检查模型连接，修正后重新预测。"
@@ -61,7 +63,7 @@ enum SessionPhase: String, CaseIterable {
 
     func title(elapsed: TimeInterval) -> String {
         switch self {
-        case .read, .predict, .search, .render, .apply:
+        case .read, .predict, .search, .render, .apply, .stopping:
             return rawValue + " \(max(0, Int(elapsed)))s"
         default: return rawValue
         }

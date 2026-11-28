@@ -48,10 +48,36 @@ enum NativeSessionLauncher {
         return process
     }
 
-    static func stop(_ process: Process) {
-        guard process.isRunning else { return }
-        let pid = process.processIdentifier
-        if getpgid(pid) == pid { kill(-pid, SIGTERM) }
-        else { process.terminate() }
+    static func stop(_ process: Process, completion: @escaping (Error?) -> Void = { _ in }) {
+        guard process.isRunning else { DispatchQueue.main.async { completion(nil) }; return }
+        guard let directory = process.environment?["PPT_CURSOR_CONTROL_DIRECTORY"] else {
+            let error = NSError(domain: "PPTCursor.Shutdown", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "缺少会话控制目录，无法安全结束。请等待本次操作完成后重试。"])
+            DispatchQueue.main.async { completion(error) }; return
+        }
+        let root = URL(fileURLWithPath: directory)
+        do { try Data().write(to: root.appendingPathComponent("stop"), options: .atomic) }
+        catch { DispatchQueue.main.async { completion(error) }; return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            // The worker holds this lock across preview writeback AND its checkpoint.
+            // Wait off the UI thread; never time out by killing a possibly active write.
+            let descriptor = open(root.appendingPathComponent("preview.lock").path, O_CREAT | O_RDWR, 0o600)
+            guard descriptor >= 0 else {
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                DispatchQueue.main.async { completion(error) }; return
+            }
+            defer { close(descriptor) }
+            while flock(descriptor, LOCK_EX) != 0 {
+                if errno == EINTR { continue }
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                DispatchQueue.main.async { completion(error) }; return
+            }
+            if process.isRunning {
+                let pid = process.processIdentifier
+                if getpgid(pid) == pid { kill(-pid, SIGTERM) }
+                else { process.terminate() }
+            }
+            DispatchQueue.main.async { completion(nil) }
+        }
     }
 }

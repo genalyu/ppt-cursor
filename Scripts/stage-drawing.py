@@ -4,6 +4,7 @@ import argparse
 import base64
 from contextlib import contextmanager
 from contextvars import ContextVar
+import fcntl
 import http.client
 import hashlib
 import io
@@ -39,6 +40,22 @@ def phase(name):
     if name != _last_phase:
         print("PPT_CURSOR_PHASE=" + name, flush=True)
         _last_phase = name
+
+
+@contextmanager
+def preview_transaction():
+    """Keep writeback and accepted-checkpoint persistence indivisible to app shutdown."""
+    control = os.environ.get("PPT_CURSOR_CONTROL_DIRECTORY")
+    if not control:
+        yield True
+        return
+    root = Path(control)
+    descriptor = os.open(root / "preview.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield not (root / "stop").exists()
+    finally:
+        os.close(descriptor)
 
 
 def web_search(query, directory, check_current=None):
@@ -1435,6 +1452,9 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
     with tempfile.TemporaryDirectory(dir=destination.parent) as directory, render_workspace(Path(directory)):
         scratch = Path(directory)
         while True:
+            control = os.environ.get("PPT_CURSOR_CONTROL_DIRECTORY")
+            if control and (Path(control) / "stop").exists():
+                return
             # Writeback already confirmed this snapshot. Start the follow-up even if
             # PowerPoint loses focus; only display it after a fresh foreground check.
             following_acceptance = queued_acceptance is not None
@@ -1591,30 +1611,33 @@ def watch_preview(source, destination, session_canvas=None, references=(), inclu
                     if confirmed == state and file_revision(source) == source_revision:
                         (candidate / "baseline.json").write_text(json.dumps(state))
                         if session_canvas:
-                            subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
-                            phase("读取")
-                            accepted = candidate / "accepted.json"
-                            if accepted.exists():
-                                instruction = None
-                                final_state = json.loads(accepted.read_text())
-                                summary = (candidate / "summary.txt").read_text()[:500]
-                                history = history[-7:] + [dict(final_state, acceptedSuggestion=summary)]
-                                queued_acceptance = final_state
-                                last_prediction = None
-                                print("已采纳，正在准备下一条建议…", flush=True)
-                                staged = candidate / "after.pptx"
-                                if staged.is_file() and file_revision(source) == source_revision:
-                                    copy = scratch / f"accepted-{state['slideID']}.pptx"
-                                    staged.replace(copy)
-                                    accepted_pages[state["slideID"]] = (copy, source_revision, object_structure(final_state))
-                                    try:
-                                        save_checkpoint(source, source_revision, copy, history)
-                                    except OSError:
-                                        print("本次恢复缓存未能保存；当前会话仍会继续预测。", file=sys.stderr, flush=True)
-                            elif (candidate / "dismissed").exists():
-                                summary = (candidate / "summary.txt").read_text()[:500]
-                                dismissed = [item for item in dismissed if item != summary][-7:] + [summary]
-                                print("已忽略，正在准备其他建议。", flush=True)
+                            with preview_transaction() as active:
+                                if not active:
+                                    return
+                                subprocess.run([str(session_canvas.resolve()), "--show-staged-preview", str(candidate)])
+                                phase("读取")
+                                accepted = candidate / "accepted.json"
+                                if accepted.exists():
+                                    instruction = None
+                                    final_state = json.loads(accepted.read_text())
+                                    summary = (candidate / "summary.txt").read_text()[:500]
+                                    history = history[-7:] + [dict(final_state, acceptedSuggestion=summary)]
+                                    queued_acceptance = final_state
+                                    last_prediction = None
+                                    print("已采纳，正在准备下一条建议…", flush=True)
+                                    staged = candidate / "after.pptx"
+                                    if staged.is_file() and file_revision(source) == source_revision:
+                                        copy = scratch / f"accepted-{state['slideID']}.pptx"
+                                        staged.replace(copy)
+                                        accepted_pages[state["slideID"]] = (copy, source_revision, object_structure(final_state))
+                                        try:
+                                            save_checkpoint(source, source_revision, copy, history)
+                                        except OSError:
+                                            print("本次恢复缓存未能保存；当前会话仍会继续预测。", file=sys.stderr, flush=True)
+                                elif (candidate / "dismissed").exists():
+                                    summary = (candidate / "summary.txt").read_text()[:500]
+                                    dismissed = [item for item in dismissed if item != summary][-7:] + [summary]
+                                    print("已忽略，正在准备其他建议。", flush=True)
                             # A closed/invalidated preview is not a completed session.
                             # Acceptance starts immediately; other exits have a short cooldown.
                             review_after = float("inf") if accepted.exists() else time.monotonic() + 2

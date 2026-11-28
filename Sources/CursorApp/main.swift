@@ -23,6 +23,9 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var documentFollow = DocumentFollowPolicy()
     private var hasNativePreview = false
     private var nativeProcess: Process?
+    private var stoppingNativeSession = false
+    private var afterNativeStop: (() -> Void)?
+    private var terminationPending = false
     private var nativeDirectory: URL?
     private var frame: NSRect?
     private var calibratedWindow: PowerPointWindow?
@@ -55,6 +58,18 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var dragMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let mainMenu = NSMenu()
+        let applicationMenu = NSMenu(title: "PPT Cursor")
+        applicationMenu.addItem(withTitle: "退出 PPT Cursor", action: #selector(quit), keyEquivalent: "q").target = self
+        mainMenu.addItem(withTitle: "PPT Cursor", action: nil, keyEquivalent: "").submenu = applicationMenu
+        let editMenu = NSMenu(title: "编辑")
+        for (title, selector, key) in [("撤销", "undo:", "z"), ("重做", "redo:", "Z"),
+                                       ("剪切", "cut:", "x"), ("复制", "copy:", "c"),
+                                       ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] {
+            editMenu.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key)
+        }
+        mainMenu.addItem(withTitle: "编辑", action: nil, keyEquivalent: "").submenu = editMenu
+        NSApp.mainMenu = mainMenu
         item.button?.image = NSImage(systemSymbolName: "rectangle.on.rectangle.angled", accessibilityDescription: "PPT Cursor")
         item.button?.toolTip = "PPT Cursor"
         let menu = NSMenu()
@@ -192,6 +207,11 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     private func startNativeSession(_ document: URL, instruction: NativeEditInstruction? = nil) {
         guard !connectingModel else { return }
+        if stoppingNativeSession {
+            afterNativeStop = { [weak self] in self?.startNativeSession(document, instruction: instruction) }
+            return
+        }
+        guard nativeProcess == nil else { return }
         defer { updateSessionControls() }
         setPhase(.read)
         awaitingDocument = false
@@ -261,6 +281,7 @@ final class Controller: NSObject, NSApplicationDelegate {
                         if status.hasPrefix("已采纳，"), let instruction {
                             self.setup.clearInstruction(ifMatching: instruction.text)
                         }
+                        guard !self.stoppingNativeSession else { return }
                         if status.hasPrefix("PPT_CURSOR_PREVIEW=") {
                             let directory = URL(fileURLWithPath: String(status.dropFirst("PPT_CURSOR_PREVIEW=".count))).resolvingSymlinksInPath()
                             guard directory.path.hasPrefix(session.resolvingSymlinksInPath().path + "/"),
@@ -304,7 +325,20 @@ final class Controller: NSObject, NSApplicationDelegate {
                     self.nativeProcess = nil
                     self.nativeDirectory = nil
                     self.nativeDocument = nil
+                    let stopped = self.stoppingNativeSession
+                    self.stoppingNativeSession = false
                     self.updateSessionControls()
+                    if self.terminationPending {
+                        NSApp.reply(toApplicationShouldTerminate: true)
+                        return
+                    }
+                    if stopped {
+                        if self.phase == .stopping { self.setPhase(.paused); self.message("开放式预测已停止") }
+                        let next = self.afterNativeStop
+                        self.afterNativeStop = nil
+                        next?()
+                        return
+                    }
                     self.setPhase(SessionPhase.workerExit(process.terminationStatus, detail: lastLine))
                     self.message(finalStatus)
                 }
@@ -320,19 +354,36 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func stopNativeSession() {
+        afterNativeStop = nil
         documentFollow.invalidate()
         awaitingDocument = false
-        nativeDocument = nil
         documentLookup = nil
-        setPhase(.paused)
-        guard let process = nativeProcess else { updateSessionControls(); message("已暂停，点击开始预测即可继续"); return }
-        NativeSessionLauncher.stop(process)
-        nativeProcess = nil
-        // The output reader removes the directory once the process has actually exited.
-        nativeDirectory = nil
+        guard !stoppingNativeSession else { return }
+        guard let process = nativeProcess else {
+            nativeDocument = nil
+            setPhase(.paused)
+            updateSessionControls()
+            message("已暂停，点击开始预测即可继续")
+            return
+        }
+        stoppingNativeSession = true
+        setPhase(.stopping)
+        message("正在结束会话；本次写入和恢复缓存完成后停止。")
         updateSessionControls()
-        setPhase(.paused)
-        message("开放式预测已停止")
+        NativeSessionLauncher.stop(process) { [weak self] error in
+            guard let self, self.nativeProcess === process, let error else { return }
+            self.stoppingNativeSession = false
+            self.afterNativeStop = nil
+            self.setPhase(.failed)
+            self.message("未能安全结束会话，请等待本次操作完成后重试。" + error.localizedDescription)
+            self.updateSessionControls()
+            if self.terminationPending {
+                self.terminationPending = false
+                NSApp.reply(toApplicationShouldTerminate: false)
+            }
+        }
+        // Keep process ownership and its private directory until the output reader
+        // observes actual exit. Replacements are queued rather than overlapped.
     }
 
     private func updateSessionControls() {
@@ -340,6 +391,9 @@ final class Controller: NSObject, NSApplicationDelegate {
         toggle.title = active ? "暂停预测" : "开始预测"
         setup.setRunning(active, canRetry: nativeProcess != nil || failedContext != nil, model: api?.model ?? (ModelSettings.hasSavedConnection ? "模型密钥待授权" : "Codex CLI"), document: nativeDocument?.lastPathComponent)
         setup.setConnecting(connectingModel)
+        setup.setStopping(stoppingNativeSession)
+        toggle.isEnabled = !stoppingNativeSession
+        retryItem.isEnabled = !stoppingNativeSession
         retryItem.isHidden = nativeProcess == nil && failedContext == nil
         retryItem.title = nativeProcess != nil ? "重新预测当前页" : "重试上次预测"
     }
@@ -351,6 +405,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func submitInstruction() {
+        guard !stoppingNativeSession else { message("正在结束上一次操作，完成后可提交新要求。"); return }
         guard !connectingModel, modelLookup == nil else { message("请先完成模型连接"); return }
         guard phase != .apply, !applying else { message("请等当前修改写入完成后再提交要求"); return }
         let text = setup.requestedInstruction
@@ -413,7 +468,17 @@ final class Controller: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func applicationWillTerminate(_ notification: Notification) { inference?.cancel(); stopNativeSession() }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if nativeProcess != nil {
+            terminationPending = true
+            stopNativeSession()
+            return .terminateLater
+        }
+        if applying { terminationPending = true; return .terminateLater }
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) { inference?.cancel() }
 
     private var frontmost: Bool {
         NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased() == "com.microsoft.powerpoint"
@@ -534,6 +599,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func retryPrediction() {
+        guard !stoppingNativeSession else { return }
         if nativeProcess != nil {
             sendSessionCommand("retry")
             message("已请求重新预测，切回 PowerPoint 后继续")
@@ -549,6 +615,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func chooseModel() {
+        guard !stoppingNativeSession, phase != .apply, !applying else { message("请等当前操作完成后再切换模型。"); return }
         guard !connectingModel else { message("请先处理系统钥匙串授权弹窗"); return }
         guard let choice = ModelSettings.choose(current: api) else { return }
         modelLookup = nil
@@ -592,6 +659,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func chooseImages() {
+        guard !stoppingNativeSession else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .svg]
         panel.allowsMultipleSelection = true
@@ -630,7 +698,11 @@ final class Controller: NSObject, NSApplicationDelegate {
     @objc private func startEditing() {
         awaitingDocument = false
         documentLookup = nil
-        if nativeProcess != nil { stopNativeSession() }
+        if nativeProcess != nil {
+            stopNativeSession()
+            afterNativeStop = { [weak self] in self?.startEditing() }
+            return
+        }
         guard locationRequest == nil else { return }
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
             openSetup()
@@ -705,7 +777,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func followPowerPointDocument() {
-        guard followsActiveDocument, frontmost, phase != .apply, let process = nativeProcess, let document = nativeDocument,
+        guard !stoppingNativeSession, followsActiveDocument, frontmost, phase != .apply, let process = nativeProcess, let document = nativeDocument,
               !checkingDocument, Date() >= nextDocumentCheck else { return }
         nextDocumentCheck = Date().addingTimeInterval(2)
         checkingDocument = true
@@ -714,7 +786,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             let result = Result { try PowerPointBridge.currentDocumentURL() }
             DispatchQueue.main.async {
                 self.checkingDocument = false
-                guard self.nativeProcess === process, self.frontmost, case .success(let current?) = result else { return }
+                guard !self.stoppingNativeSession, self.nativeProcess === process, self.frontmost, case .success(let current?) = result else { return }
                 guard self.documentFollow.shouldFollow(current, active: document, generation: observationGeneration,
                                                       applying: self.phase == .apply) else {
                     if current.resolvingSymlinksInPath() != document.resolvingSymlinksInPath() {
@@ -903,6 +975,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func accept() {
+        guard !stoppingNativeSession else { return }
         if nativeProcess != nil {
             guard hasNativePreview else { return }
             setPhase(.apply)
@@ -930,6 +1003,7 @@ final class Controller: NSObject, NSApplicationDelegate {
             let result = Result { try PowerPointBridge.apply(proposal, to: state, images: references) }
             DispatchQueue.main.async {
                 self.applying = false
+                if self.terminationPending { NSApp.reply(toApplicationShouldTerminate: true); return }
                 self.setPhase(.read)
                 guard revision == self.generation else { return }
                 switch result {

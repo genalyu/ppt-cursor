@@ -36,6 +36,9 @@ enum StagedPreview {
             try? FileManager.default.removeItem(at: file)
             return true
         }
+        func stopRequested() -> Bool {
+            controlDirectory.map { FileManager.default.fileExists(atPath: $0.appendingPathComponent("stop").path) } ?? false
+        }
         // Do not carry a menu click from a previous prediction into a new proposal.
         _ = consume("accept-preview")
         _ = consume("dismiss-preview")
@@ -78,6 +81,7 @@ enum StagedPreview {
         }
         let actions = StagedActions { input in
             guard submission.canAccept, powerpoint.isActive, NSEvent.pressedMouseButtons == 0 else { return }
+            if stopRequested() { app.terminate(nil); return }
             guard let current = PowerPointWindow.front(of: powerpoint), matchesPage(current) else {
                 app.terminate(nil)
                 return
@@ -227,6 +231,7 @@ enum StagedPreview {
             // A failed proposal cannot be applied twice, but retry/dismiss must still
             // release this child so the worker can continue. Never interrupt a write.
             guard submission.canHandleCommands else { return }
+            if stopRequested() { app.terminate(nil); return }
             if let retry = controlDirectory?.appendingPathComponent("retry"),
                FileManager.default.fileExists(atPath: retry.path) { app.terminate(nil); return }
             if consume("dismiss-preview") { actions.dismiss(); return }

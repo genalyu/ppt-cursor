@@ -139,6 +139,16 @@ final class SetupWindow: NSWindow {
         connection.stringValue = model + (document.map { " · " + $0 } ?? " · 等待本地 PPTX")
     }
 
+    func setStopping(_ stopping: Bool) {
+        if stopping {
+            sessionButton.title = "正在结束…"
+            sessionButton.isEnabled = false
+            retryButton.isEnabled = false
+            settings.isEnabled = false
+            requestButton.isEnabled = false
+        }
+    }
+
     func updatePhase(_ value: String) { phaseLabel.stringValue = value }
 
     func setConnecting(_ connecting: Bool) {

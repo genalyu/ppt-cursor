@@ -24,12 +24,13 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
-## Current priorities after build 46
+## Current priorities after build 47
 
 - Compact native additions now pass real-model label generation, editable group acceptance and automatic continuation. The aligned-label request took 4.608 s model / 2.404 s render; the next compact proposal took 6.686 / 1.732 s. Broaden representative diagrams and complex-style coverage without sacrificing output fidelity.
 - Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
 - The full explicit-request control-window submission/acceptance path passed twice through the API connection; the real CLI/model/staging path also passed. Continue covering broader edit types and longer sessions.
 - Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
+- Pause/quit now wait through writeback and checkpoint persistence; real-process and isolated-controller tests cover shutdown and serialized restart. Live document-switch/cancellation coverage remains open.
 - Failed acceptance now retains retry controls, with a real rejection → retry → acceptance → continuation test. Keep covering document switches and cancellation under real editing.
 - Uniform bold/italic now pass native writeback and real-provider acceptance. Broaden text color/alignment and mixed-run editing, add native UI footage and finish the remaining live gates above.
 - Reuse the already-unlocked running connection while the owner is away; avoid restarts or credential operations requiring their interaction.

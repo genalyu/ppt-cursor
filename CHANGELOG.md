@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0 preview — build 47
+
+- Protect native preview/writeback and accepted-checkpoint persistence with a cross-process transaction lock. Pause first disallows new acceptance, waits off the UI thread for the protected work, then stops the session process group.
+- Show “正在结束” until the worker actually exits. Retain process ownership during shutdown and queue replacement sessions so writes cannot overlap.
+- Normal app quit defers termination until the active session or legacy native write finishes. Quitting cancels queued restarts.
+- Add standard app/edit menus for Command-Q, paste, select-all, cut/copy and undo/redo; verified Chinese paste and safe Command-Q in an isolated app copy.
+- Add real-process shutdown regressions plus a clearly labelled UI fixture for slow writes/checkpoints. The fixture never invokes a model or edits PowerPoint.
+
 ## 0.1.0 preview — build 46
 
 - Fix a stranded session after native acceptance fails: the preview child now handles retry/dismiss after failure while continuing to prohibit commands during an active write or export.
