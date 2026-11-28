@@ -31,7 +31,7 @@ Complex replacements may require saving a suggested copy. The floating preview s
 
 ## Download
 
-[Apple Silicon preview v0.1.0-preview.43](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.43/PPT-Cursor-macOS-arm64.zip) · [Release notes and checksum](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.43)
+[Apple Silicon preview v0.1.0-preview.44](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.44/PPT-Cursor-macOS-arm64.zip) · [Release notes and checksum](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.44)
 
 Unzip and open `PPT Cursor.app`. PowerPoint, Python 3 with Pillow and LibreOffice are still required locally. Configure the model in the app. Intel Mac users currently need a source build. This package passed CI tests and packaging checks; it is not Apple-notarized.
 
