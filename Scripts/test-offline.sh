@@ -10,6 +10,7 @@ else
     ./Scripts/test-history.sh
 fi
 python3 Scripts/test-staged-api.py
+python3 Scripts/test-text-edits.py
 python3 Scripts/test-staged-history.py
 python3 Scripts/test-fast-preview.py
 python3 Scripts/test-checkpoints.py

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 preview — build 39
+
+- Add compact `textEdit` proposals for text and uniform font-size changes. Local expansion preserves the original shape styling, then uses the existing preview and native equivalence checks.
+- Support uniform font-size changes inherited from a template, including differently styled text runs. Keep unsaved live font-size edits in the disposable preview baseline.
+- Reject conflicting operations, unsupported fields, multiline replacements and invalid sizes. Mixed-format text replacement still uses the full DrawingML path.
+- Verified a real PowerPoint bridge write and saved-file round trip: changed text and size retained Arial, color, bold and italic. A test fixture's JSON response shrank from 741 to 194 bytes; this is not a measured model-latency improvement.
+
 ## 0.1.0 preview — build 38
 
 ### Editing reliability
