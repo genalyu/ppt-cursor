@@ -6,7 +6,7 @@ bin=$(swift build -c release --show-bin-path)
 app="dist/PPT Cursor.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin/PPTCursor" "$app/Contents/MacOS/"
-cp Scripts/stage-drawing.py Scripts/web_assets.py "$app/Contents/Resources/"
+cp Scripts/stage-drawing.py Scripts/web_assets.py Scripts/shape_inserts.py "$app/Contents/Resources/"
 cp Packaging/Info.plist "$app/Contents/"
 icons=$(mktemp -d)
 trap 'rm -rf "$icons"' EXIT

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0 preview — build 44
+
+- Add compact, validated shape-insertion instructions for text labels, arrows, rectangles, rounded rectangles, ellipses and chevrons. The app generates editable native DrawingML, retaining the full-fragment path for designs needing other styles.
+- Support shared fill, stroke, text color, typeface, size, weight, alignment and horizontal text inset; group multiple additions while preserving existing slide objects.
+- Validate item counts, bounds, finite values, strings, colors and mutually exclusive operations. Package checks now compare all Python resources against their sources.
+- A three-label fixture shrank from 2,626 bytes of DrawingML response to 517 bytes of compact JSON. Real qwen4-max generated the aligned labels in 4.608 s, with 2.404 s rendering; native acceptance and the next compact suggestion passed. Timings are samples, not a fixed speedup guarantee.
+- Ask for shorter user-facing summaries that describe the visible change instead of coordinate lists.
+
 ## 0.1.0 preview — build 43
 
 - Reuse an isolated LibreOffice profile within each editing session, avoiding repeated initialization for later previews. User LibreOffice profiles are never used.

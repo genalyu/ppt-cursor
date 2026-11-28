@@ -22,6 +22,7 @@ The runner uses XCTest when available and the same history assertions through sw
 - `Sources/CursorCore`: snapshots, context, validation, model protocols and cancellation.
 - `Sources/MacIntegration`: live snapshot capture and guarded writeback.
 - `Scripts/stage-drawing.py`: history, provider requests, temporary PPTX staging and preview rendering.
+- `Scripts/shape_inserts.py`: compact native diagram compiler; `test-shape-inserts.py` covers geometry, style, XML escaping, validation, package preservation and prediction routing.
 - `Scripts/web_assets.py`: bounded Commons search, license filtering and normalized image downloads.
 - `Scripts/test-style-bridge.sh`: executes the actual bridge against a JavaScriptCore double to verify style readback, stale-baseline rejection and rollback without Apple events.
 - `Scripts/test-render-workspace.py`: renderer-profile reuse, isolation, cleanup and failure recovery; `--benchmark` runs real LibreOffice exports and compares all preview channels and PPTX parts.

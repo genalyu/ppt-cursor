@@ -31,6 +31,7 @@ flowchart LR
 | `StagedPreview.swift` | Display proposal, suspend on focus changes, route acceptance and recheck before applying |
 | `Sources/MacIntegration` | PowerPoint snapshots and guarded native writeback, with rollback checks |
 | `Scripts/stage-drawing.py` | Context, provider calls, untrusted DrawingML validation, staged PPTX, rendering and session recovery |
+| `Scripts/shape_inserts.py` | Validate compact additions and compile them to self-contained editable shapes/groups without replacing existing objects |
 | `Scripts/web_assets.py` | Bounded Commons search, license filtering, URL/redirect validation and raster normalization |
 
 ## Important boundaries

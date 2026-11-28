@@ -63,9 +63,15 @@ Transient errors and empty proposals retry with 15/30/60-second backoff; authori
 
 A measured geometry-render example took **0.103 seconds**, versus **2.998 seconds** with LibreOffice on the same machine. This is one rendering-stage measurement, **not end-to-end latency**. Text, new shapes and images still need full rendering. Model response latency depends on the provider, model and context. Image search adds network work and a second model call.
 
-Two real qwen4-max requested-text edits took **2.106 / 1.793 seconds** for the model and **2.636 / 2.621 seconds** for rendering. Both used compact text proposals and were accepted in PowerPoint. These are fixture-specific samples, excluding user review/background waiting, not a general latency guarantee.
+Common text edits and new native shapes use compact instructions. Actual qwen4-max samples, excluding user review and background waiting:
 
-Build 43 reuses a private renderer profile within each session. A same-slide benchmark reduced warm full-preview time from **2.206–2.276 s to 1.499–1.517 s**, preserving every RGBA pixel and PPTX part. Cold initialization remains. A real continuous session rendered in **2.455 / 1.767 / 1.806 s**; model generation for the latter two drawings still took 11.557 / 18.288 s and needs further optimization.
+| Scenario | Model response | Preview rendering |
+| --- | --- | --- |
+| Two text edits | 1.793 / 2.106 s | 2.621 / 2.636 s |
+| Three aligned number labels | 4.608 s | 2.404 s |
+| Next automatic shape suggestion | 6.686 s | 1.732 s |
+
+Session profile reuse reduced warm full-preview time from **2.206–2.276 s to 1.499–1.517 s** in a same-slide benchmark, preserving all RGBA pixels and PPTX parts. Cold initialization remains. A three-label response is 517 bytes in compact form versus 2,626 bytes as DrawingML. Neither the payload reduction nor these samples imply a fixed speedup for every model or document; complex styling retains the full DrawingML path.
 
 [Validation notes](docs/QA-2026-11-28.md) distinguish mocked regressions from live provider requests and actual PowerPoint writes. [Quality roadmap](docs/PRODUCT-PLAN.md).
 

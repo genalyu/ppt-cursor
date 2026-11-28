@@ -10,6 +10,8 @@
 - `source/solar-before.png` and `solar-after.png`: a public test slide before and after the model autonomously searched, selected and inserted an image. No user reference images were supplied.
 - `source/request-before.png` and `request-after.png`: the real qwen4-max preview of an explicit request to change Research to Discover while retaining the remaining text and formatting; the control-window acceptance and actual PowerPoint result were verified.
 
+- `source/compact-shapes-after.png`: build 44 real qwen4-max preview of three aligned number labels, later accepted as an editable PowerPoint group. This is a rendered slide, not a native application screenshot; it is not part of the current video sequence.
+
 **These videos are edited preview replays, not real-time screen recordings.** Every scene is labelled accordingly. Process scenes zoom into the diagram; the solar and requested-edit slides are shown in full. Scene durations are editorial and must not be used as latency measurements. No generated mock screenshot is presented as native application footage. See the [live verification report](../QA-2026-11-28.md) for actual timings, writeback and limitations.
 
 The solar image is [Topaz Solar Farm, California Valley](https://commons.wikimedia.org/wiki/File:Topaz_Solar_Farm,_California_Valley.jpg), marked public domain by Commons. Credit: Earth Observatory image by Jesse Allen, using EO-1 ALI data provided courtesy of the NASA EO-1 team; caption by Adam Voiland. Original attribution metadata is in `source/solar-credit.json` and is retained in the inserted picture's alternative text.

@@ -11,6 +11,7 @@ else
 fi
 python3 Scripts/test-staged-api.py
 python3 Scripts/test-text-edits.py
+python3 Scripts/test-shape-inserts.py
 python3 Scripts/test-instructions.py
 python3 Scripts/test-staged-history.py
 python3 Scripts/test-fast-preview.py

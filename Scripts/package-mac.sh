@@ -28,5 +28,8 @@ test -x "$copy/Contents/MacOS/PPTCursor"
 for module in CursorCore MacIntegration; do
     test -d "$copy/Contents/Resources/PPTCursor_${module}.bundle"
 done
+for resource in stage-drawing.py web_assets.py shape_inserts.py; do
+    cmp "Scripts/$resource" "$copy/Contents/Resources/$resource"
+done
 mv "$temp/$name" "dist/$name"
 (cd dist && shasum -a 256 "$name" > "$name.sha256")

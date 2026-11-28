@@ -24,9 +24,9 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
 - [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
 
-## Current priorities after build 43
+## Current priorities after build 44
 
-- Reduce full DrawingML generation for common editable diagrams: two real follow-up proposals spent 11.557 / 18.288 seconds in the model, versus 1.767 / 1.806 seconds rendering after session-profile reuse. Use compact validated primitives without weakening native output fidelity.
+- Compact native additions now pass real-model label generation, editable group acceptance and automatic continuation. The aligned-label request took 4.608 s model / 2.404 s render; the next compact proposal took 6.686 / 1.732 s. Broaden representative diagrams and complex-style coverage without sacrificing output fidelity.
 - Broaden real-provider timing samples beyond the verified API font-size and CLI requested-text scenarios. Temporary format/duration metrics are implemented without logging prompts or slide contents.
 - The full explicit-request control-window submission/acceptance path passed twice through the API connection; the real CLI/model/staging path also passed. Continue covering broader edit types and longer sessions.
 - Authorization now runs off the UI thread with an explicit pending state; native waiting-state responsiveness was verified. Keep testing recovery and normal switching without extra key reads/writes.
