@@ -15,6 +15,7 @@ python3 Scripts/test-fast-preview.py
 python3 Scripts/test-checkpoints.py
 python3 Scripts/test-web-assets.py
 ./Scripts/test-session-status.sh
+./Scripts/test-document-follow.sh
 ./Scripts/test-api-prediction.sh
 ./Scripts/test-prediction-cancellation.sh
 ./Scripts/test-page-locator.sh

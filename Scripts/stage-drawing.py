@@ -733,8 +733,13 @@ def reference_inputs(paths, scratch):
     return catalog, flags
 
 
+def content_objects(state):
+    # Swift omits nil optionals; JXA returns null. They describe identical content.
+    return [{key: value for key, value in obj.items() if value is not None} for obj in state["objects"]]
+
+
 def slide_content(state):
-    return state.get("width"), state.get("height"), state["objects"]
+    return state.get("width"), state.get("height"), content_objects(state)
 
 
 def object_structure(state):
@@ -750,8 +755,8 @@ def refreshed_snapshot(previous, current):
 def model_history(states):
     transitions = []
     for previous, current in zip(states, states[1:]):
-        before = {obj["id"]: obj for obj in previous["objects"]}
-        after = {obj["id"]: obj for obj in current["objects"]}
+        before = {obj["id"]: obj for obj in content_objects(previous)}
+        after = {obj["id"]: obj for obj in content_objects(current)}
         change = {"before": [obj for key, obj in before.items() if after.get(key) != obj],
                   "after": [obj for key, obj in after.items() if before.get(key) != obj]}
         if current.get("acceptedSuggestion"):

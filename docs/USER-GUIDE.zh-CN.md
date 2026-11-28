@@ -1,0 +1,85 @@
+# PPT Cursor for Mac
+
+在 PowerPoint 中预览下一步编辑，确认后用快捷键采纳。支持移动、缩放、旋转、文本和部分原生图形修改，以及素材插入。macOS 菜单栏应用，MIT 开源。
+
+**当前状态：预览版。** 支持 macOS 13+ 与桌面版 Microsoft PowerPoint。模型输出需要用户确认；复杂替换可能只能另存为 PPTX 副本。正式签名、公证及跨版本兼容验证尚未完成。
+
+## 从源码开始
+
+需要 Xcode Command Line Tools（Swift 5.9+）、Python 3、Pillow、Microsoft PowerPoint 和 LibreOffice。模型可选已登录的 Codex CLI、OpenAI API 或阿里云百炼 API。
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+./Scripts/check-environment.sh
+./Scripts/build-app.sh
+open "dist/PPT Cursor.app"
+```
+
+从 Finder 启动本地 `dist` 中的源码构建时，会优先查找项目的 `.venv`；也会检查 PATH、Homebrew 和常见 Python 安装位置。将应用移至其他目录后，请确保常见安装位置中存在带 Pillow 的 Python。无需为几何预览启动 LibreOffice，但完整渲染及截图输入仍需要它，应用会在启动时检查安装。
+
+[历史预览包](https://github.com/genalyu/ppt-cursor/releases)不一定包含当前源码的修复。测试包使用临时签名，尚未 Apple 公证。
+
+## 使用流程
+
+1. 在 PowerPoint 普通视图打开并保存一个本地 `.pptx`。可先使用仓库中的 `Examples/Tab-Demo.pptx` 副本。
+2. 打开 PPT Cursor 的控制窗口，在「模型连接…」选择服务商、填写模型和密钥。密钥保存在此 Mac 的钥匙串，重启后保留；切换到 Codex CLI 不会删除钥匙串中的 API 密钥。
+3. 点击「开始预测」，然后切回 PowerPoint。已有连接或曾启动过会话的用户，后续启动应用会自动等候文稿。macOS 可能提示允许应用自动化控制 PowerPoint。
+4. 编辑并松开鼠标，查看建议。对象编辑时默认按 **Tab** 采纳；编辑文本时使用 **⌥⌘Return**。快捷键冲突时以面板提示为准，也可点击「采纳」或使用菜单。所有写入前都会再次核对文稿与页面状态。
+5. 「忽略」关闭本条建议并继续寻找其他建议。「暂停预测」停止会话和快捷键。「重新预测」主动重试当前页。采纳成功后会继续生成下一条建议，没有次数上限。
+
+顶部状态栏随实际工作切换：读取、预测、搜素材、生成预览、待采纳、写入、待切回、待文稿、等待重试、待保存、待编辑、已暂停和连接异常。处理中的阶段显示已用秒数。控制窗口显示连接、当前文件和状态。菜单中的采纳、忽略与重新预测控制同一会话。
+
+## 预览与速度
+
+- 纯移动、缩放、旋转使用**位置/尺寸示意**，直接生成目标轮廓，不启动 LibreOffice。能定位画布时叠在原页上，否则显示带有明确说明的几何缩略图；它不模拟文字或图片的最终外观。
+- 文本、颜色、新图形等修改通过 LibreOffice 渲染临时 PPTX，再显示变化。LibreOffice 与 PowerPoint 的字体和主题渲染可能存在差异。
+- 原位叠加依赖屏幕录制权限和可识别的页面边界。缺少权限或边界不确定时自动使用缩略图，不阻塞采纳。切换应用会隐藏预览并释放快捷键，返回后先核对当前页。
+- 空/不可见建议先补试一次，随后按 15、30、60 秒间隔继续寻找建议；网络、限流或模型格式错误也会持续间隔重试，最长间隔 60 秒。切到后台会等待返回，暂停会停止请求。持续预测会产生后续 API 调用；鉴权/权限错误仍需要修正连接。
+- 状态中分别报告模型响应、预览生成耗时；模型速度取决于服务商、模型和上下文。开启截图会增加渲染与传输时间。
+
+## 自动素材搜索
+
+无需先上传图片。模型认为照片、插图等有助于当前页面时，会提出通用搜索关键词；应用搜索 Wikimedia Commons，下载最多 3 张公有领域／CC0 图片，再让模型选择图片与位置，生成可采纳的预览。用户上传的图片仍是额外参考，可与网络素材一起使用。
+
+不需要额外搜索 API 密钥。预览提供「素材来源」链接，图片替代文字保留来源及许可信息。搜索不可用或没有合适图片时，继续尝试普通编辑建议。搜索会增加网络请求和一次模型调用；当前内置来源限于 Commons，无法保证每个主题都有合适图片。
+
+实现依据：[Commons 素材使用说明](https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia)、[MediaWiki 图片信息 API](https://www.mediawiki.org/wiki/API:Imageinfo)。
+
+## 数据与模型
+
+开始后，当前页文字、对象名称/位置/尺寸及同页最近最多 8 个内容状态会提供给所选模型。同一文稿最近离开的 3 页历史在本机会话中缓存。文稿路径不会加入 Python 预测请求；纯选区变化不会占用新的内容历史记录。
+
+已采纳的 PPTX 副本与最近状态还会存入本机 `~/Library/Caches/io.github.genalyu.pptcursor/accepted`，用于暂停或重启后继续处理尚未保存的新对象；最多保留 12 页，超过 7 天失效。恢复时会核对源文件版本及对象结构，不会自动保存你的原稿。
+
+默认不发送整页截图。勾选「向模型提供当前幻灯片截图」后，会提供渲染的当前页。选择图片素材后，模型会收到素材名和缩略图。自动搜索时，模型生成的关键词会发送给 Wikimedia Commons；下载的候选图片、来源信息及缩略图会提供给所选模型。提示词要求使用通用关键词并避开敏感名称，但关键词仍由模型生成。所有模型内容按所选服务商的政策处理，API 用量按其账户计费。
+
+百炼使用 Chat Completions，OpenAI 使用 Responses。百炼北京默认地址为 `https://dashscope.aliyuncs.com/compatible-mode/v1`，可填写受支持的百炼地域/业务空间地址。模型必须具有对应账户的访问权限；含图片的请求需要模型支持图像输入。连接失败时请检查模型名称、地域、密钥、额度和网络。
+
+## 排障
+
+| 现象 | 处理 |
+| --- | --- |
+| 找不到 Python / Pillow / LibreOffice | 运行 `Scripts/check-environment.sh`；激活虚拟环境后重新构建 |
+| 一直等候文稿 | 打开本地 PPTX、保存，并切回 PowerPoint 普通视图 |
+| 对象尚未同步到文件 | 保存 PPTX，应用会继续；不会替你保存原稿 |
+| 只有缩略图 | 检查系统屏幕录制权限；非纯色边缘、缩放或布局可能无法自动定位 |
+| Tab 没反应 | 先确认建议可见且 PowerPoint 在前台，按面板显示的键或点击采纳 |
+| 重建后密钥无法读取 | 临时签名变化可能触发钥匙串授权；打开模型连接，完成系统授权或重新填写密钥。启动窗口不会等待密码弹窗 |
+| API 失败 | 修正「模型连接…」，点击「重新预测」；不要把密钥贴进 issue |
+| 暂无新建议 | 继续编辑，或主动点击「重新预测」 |
+
+## 开发与发布
+
+参见 [贡献指南](../CONTRIBUTING.md) 和 [安全与数据说明](../SECURITY.md)。CI 覆盖 Swift 核心、API 请求、历史、取消和快速预览测试；实际 PowerPoint 与实体快捷键仍需桌面验证。
+
+```sh
+./Scripts/test-offline.sh
+# 额外执行真实 LibreOffice 性能对比
+python3 Scripts/test-fast-preview.py --benchmark
+```
+
+`Scripts/package-mac.sh` 生成 ZIP 和 SHA-256。发布者可配置 `PPT_CURSOR_SIGN_IDENTITY` 与 `PPT_CURSOR_NOTARY_PROFILE` 完成 Developer ID 签名、公证。`Scripts/publish-mac.sh` 会发布 GitHub release，仅在准备好公开发布时执行。
+
+MIT License · [源代码](https://github.com/genalyu/ppt-cursor)

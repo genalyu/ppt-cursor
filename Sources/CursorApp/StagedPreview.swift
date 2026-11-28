@@ -153,6 +153,8 @@ enum StagedPreview {
                         }
                         app.terminate(nil)
                     case .failure(let error):
+                        print("PPT_CURSOR_PHASE=操作失败")
+                        fflush(stdout)
                         feedbackPanel?.showStatus(error.localizedDescription, finished: true)
                         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
                     }
@@ -184,6 +186,11 @@ enum StagedPreview {
                                        page: frame, actionTitle: !direct ? "另存建议副本…" : nil, sourceURL: source?.sourceURL)
         feedbackPanel = controls
         controls.orderFrontRegardless()
+        let previewInfo = ["direct": direct]
+        if let data = try? JSONSerialization.data(withJSONObject: previewInfo) {
+            try? data.write(to: directory.appendingPathComponent("preview-info.json"), options: .atomic)
+        }
+        print("PPT_CURSOR_PREVIEW=" + directory.path)
         print("PPT_CURSOR_PHASE=待采纳")
         print("已显示建议 · " + (shortcutLabel ?? "点击面板采纳"))
         fflush(stdout)

@@ -1,0 +1,29 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem without keys or private slide content.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: macOS, PowerPoint version, app build, model/provider (never API keys).
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: Include the status shown and whether the issue occurs before preview, at acceptance, or after acceptance.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result / 预期与实际
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Optional evidence / 可选证据
+      description: Use a minimal public PPTX or redacted screenshot. Remove API keys, private decks and personal information.

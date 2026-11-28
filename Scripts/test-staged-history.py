@@ -350,3 +350,12 @@ for mode in ("empty", "temporary", "malformed"):
         assert len(calls) == 11 and len(shown) == 1, (mode, calls, shown)
         assert now[0] >= 100, "Recovery must back off instead of spinning"
 print("Verified eventual preview after 10 empty, network-failed, or malformed responses")
+
+# Live Swift writeback omits nil fields that JXA snapshots represent as null.
+# A return from the control window must not spend a history slot on that encoding difference.
+optional_a = {"width": 720, "height": 540, "objects": [{"id": "a", "x": 1}]}
+optional_b = {"width": 720, "height": 540, "objects": [{"id": "a", "x": 1, "text": None}]}
+assert staging.slide_content(optional_a) == staging.slide_content(optional_b)
+optional_b["objects"][0]["text"] = "Changed"
+assert staging.slide_content(optional_a) != staging.slide_content(optional_b)
+print("Equivalent absent/null optional fields do not spend content history slots")

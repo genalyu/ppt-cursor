@@ -7,13 +7,15 @@ final class Controller: NSObject, NSApplicationDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let status = NSMenuItem(title: "打开要编辑的 PowerPoint 文稿", action: nil, keyEquivalent: "")
     private let toggle = NSMenuItem(title: "开始预测", action: #selector(toggleMonitoring), keyEquivalent: "")
-    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint))
+    private lazy var setup = SetupWindow(owner: self, includePageChanged: #selector(refreshNativeSettings), chooseImages: #selector(chooseImages), modelSettings: #selector(chooseModel), toggleTab: #selector(toggleTab), prefersTab: useTab, toggleSession: #selector(toggleMonitoring), retry: #selector(retryPrediction), returnToEditor: #selector(returnToPowerPoint), accept: #selector(accept), dismiss: #selector(dismiss))
     private var documentLookup: UUID?
     private var awaitingDocument = false
     private var followsActiveDocument = true
     private var checkingDocument = false
     private var nextDocumentCheck = Date.distantPast
     private var nativeDocument: URL?
+    private var documentFollow = DocumentFollowPolicy()
+    private var hasNativePreview = false
     private var nativeProcess: Process?
     private var nativeDirectory: URL?
     private var frame: NSRect?
@@ -238,6 +240,19 @@ final class Controller: NSObject, NSApplicationDelegate {
                     let status = lastLine
                     DispatchQueue.main.async {
                         guard self.nativeProcess === process else { return }
+                        if status.hasPrefix("PPT_CURSOR_PREVIEW=") {
+                            let directory = URL(fileURLWithPath: String(status.dropFirst("PPT_CURSOR_PREVIEW=".count))).resolvingSymlinksInPath()
+                            guard directory.path.hasPrefix(session.resolvingSymlinksInPath().path + "/"),
+                                  let image = NSImage(contentsOf: directory.appendingPathComponent("after.png")) else { return }
+                            let summary = (try? String(contentsOf: directory.appendingPathComponent("summary.txt"), encoding: .utf8)) ?? "当前建议"
+                            let diagram = FileManager.default.fileExists(atPath: directory.appendingPathComponent("geometry-preview").path)
+                            let infoData = try? Data(contentsOf: directory.appendingPathComponent("preview-info.json"))
+                            let info = infoData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Bool] }
+                            self.hasNativePreview = true
+                            self.setup.showPreview(image: image, summary: (diagram ? "位置/尺寸示意 · " : "") + summary,
+                                                   direct: info?["direct"] ?? false, source: self.previewSource(in: directory))
+                            return
+                        }
                         if status.hasPrefix("PPT_CURSOR_PHASE="),
                            let next = Phase(event: String(status.dropFirst("PPT_CURSOR_PHASE=".count))) {
                             self.setPhase(next)
@@ -284,6 +299,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     @objc private func stopNativeSession() {
+        documentFollow.invalidate()
         awaitingDocument = false
         nativeDocument = nil
         documentLookup = nil
@@ -323,7 +339,7 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func openSetup() {
         updateSessionControls()
-        setup.update(status.title)
+        setup.update(status.title == phase.rawValue ? phase.explanation : status.title)
         NSApp.activate(ignoringOtherApps: true)
         setup.makeKeyAndOrderFront(nil)
     }
@@ -342,31 +358,53 @@ final class Controller: NSObject, NSApplicationDelegate {
     private var phase: Phase = .paused
     private var phaseStarted = Date()
 
+    private func previewSource(in directory: URL) -> URL? {
+        struct Source: Decodable { let sourceURL: URL }
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent("asset-source.json")) else { return nil }
+        return (try? JSONDecoder().decode(Source.self, from: data))?.sourceURL
+    }
+
     private func refreshStatusTitle() {
         item.button?.title = phase.title(elapsed: Date().timeIntervalSince(phaseStarted))
         item.button?.imagePosition = .imageLeading
+        setup.updatePhase(phase.title(elapsed: Date().timeIntervalSince(phaseStarted)))
     }
 
     private func setPhase(_ next: Phase) {
         guard next != phase else { refreshStatusTitle(); return }
         phase = next
         phaseStarted = Date()
+        if ![.preview, .waiting, .apply].contains(next) { setup.clearPreview(); hasNativePreview = false }
+        if next == .apply { documentFollow.invalidate() }
+        setup.setApplying(next == .apply)
+        if let directory = nativeDirectory {
+            let record = ["phase": next.rawValue, "time": ISO8601DateFormatter().string(from: Date())]
+            if let data = try? JSONSerialization.data(withJSONObject: record) {
+                let url = directory.appendingPathComponent("session-events.jsonl")
+                if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) }
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    defer { try? handle.close() }
+                    _ = try? handle.seekToEnd()
+                    try? handle.write(contentsOf: data + Data([10]))
+                }
+            }
+        }
         refreshStatusTitle()
         status.title = next.rawValue
-        setup.update(next.rawValue)
+        setup.update(next.explanation)
         item.button?.toolTip = next.rawValue
     }
 
     private func message(_ value: String) {
         status.title = phase.rawValue + " · " + value
         item.button?.toolTip = status.title
-        setup.update(status.title)
+        setup.update(value)
         if CommandLine.arguments.contains("--verbose") {
             FileHandle.standardError.write(Data((value + "\n").utf8))
         }
     }
     private func invalidate() {
-        if nativeProcess == nil { setPhase(.read) }
+        if nativeProcess == nil { setPhase(monitoring ? .read : .paused) }
         generation += 1
         inference?.cancel()
         inference = nil
@@ -588,16 +626,23 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
 
     private func followPowerPointDocument() {
-        guard followsActiveDocument, frontmost, let process = nativeProcess, let document = nativeDocument,
+        guard followsActiveDocument, frontmost, phase != .apply, let process = nativeProcess, let document = nativeDocument,
               !checkingDocument, Date() >= nextDocumentCheck else { return }
         nextDocumentCheck = Date().addingTimeInterval(2)
         checkingDocument = true
+        let observationGeneration = documentFollow.generation
         DispatchQueue.global(qos: .utility).async {
             let result = Result { try PowerPointBridge.currentDocumentURL() }
             DispatchQueue.main.async {
                 self.checkingDocument = false
-                guard self.nativeProcess === process, self.frontmost, case .success(let current?) = result,
-                      current.resolvingSymlinksInPath() != document.resolvingSymlinksInPath() else { return }
+                guard self.nativeProcess === process, self.frontmost, case .success(let current?) = result else { return }
+                guard self.documentFollow.shouldFollow(current, active: document, generation: observationGeneration,
+                                                      applying: self.phase == .apply) else {
+                    if current.resolvingSymlinksInPath() != document.resolvingSymlinksInPath() {
+                        self.nextDocumentCheck = Date().addingTimeInterval(0.5)
+                    }
+                    return
+                }
                 self.stopNativeSession()
                 self.imageImport?.cancel()
                 self.images.removeAll()
@@ -779,6 +824,8 @@ final class Controller: NSObject, NSApplicationDelegate {
 
     @objc private func accept() {
         if nativeProcess != nil {
+            guard hasNativePreview else { return }
+            setPhase(.apply)
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.microsoft.Powerpoint").first?.activate(options: [])
             sendSessionCommand("accept-preview")
             return

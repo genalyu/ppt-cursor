@@ -15,6 +15,7 @@ enum SessionPhase: String, CaseIterable {
     case ready = "待编辑"
     case paused = "已暂停"
     case error = "连接异常"
+    case failed = "操作失败"
 
     init?(event: String) {
         switch event {
@@ -23,6 +24,25 @@ enum SessionPhase: String, CaseIterable {
         default:
             guard let phase = Self(rawValue: event) else { return nil }
             self = phase
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .read: return "正在核对当前文稿和页面。"
+        case .predict: return "模型正在准备下一步建议，你可以继续编辑。"
+        case .search: return "正在搜索并检查公开图片素材。"
+        case .render: return "正在生成修改后的预览。"
+        case .preview: return "确认预览后采纳，或忽略并尝试其他建议。"
+        case .apply: return "正在写入 PowerPoint，请稍候。"
+        case .waiting: return "切回 PowerPoint 后自动继续。"
+        case .document: return "请打开并保存一个本地 PPTX。"
+        case .retry: return "稍后自动重试，也可以点击重新预测。"
+        case .save: return "请保存当前文稿，保存后自动继续。"
+        case .ready: return "继续编辑，AI 会跟随你的改动。"
+        case .paused: return "点击开始预测，继续与 AI 协作。"
+        case .error: return "请检查模型连接，修正后重新预测。"
+        case .failed: return "写入没有完成，请检查提示后重新预测。"
         }
     }
 
