@@ -14,15 +14,22 @@ The target is a dependable human–AI PowerPoint workflow with the installation,
 
 ## Product and release quality
 
-- [ ] Control window provides readable progress, a current preview, accept/dismiss, pause/retry and recovery actions.
+- [x] Control window provides readable progress, a current preview, accept/dismiss, pause/retry and recovery actions.
 - [ ] Model setup, inaccessible credentials and dependencies have actionable feedback.
 - [ ] Cancellation, switching documents, stale responses and failures preserve user work.
-- [x] Regression checks and packaging pass locally and on CI for build 38.
+- [x] Regression checks and packaging pass locally and on CI for build 39; downloaded release checksum, signature and worker-source match verified.
 - [x] Current Apple Silicon preview download, prerequisites and troubleshooting. Intel builds and a broader compatibility matrix remain open.
 - [x] Bilingual README with concise value proposition, verified preview renders, workflow and installation. Native screenshots remain to be added.
 - [x] Short promotional video and longer demo replay, with source provenance and explicit non-real-time labelling. Native screen-recorded walkthrough remains open.
 - [x] Reproducible media sources, captions, credits and the existing public demo deck.
-- [ ] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
+- [x] Contribution guide, architecture, roadmap, changelog, security policy, issue/PR templates and useful repository metadata.
+
+## Current priorities after build 39
+
+- Broaden real-provider timing samples beyond the verified six-second font-size scenario; retain the proposal format and phase durations without logging slide contents.
+- Keep model-connection authorization off the UI thread and show an explicit pending state; the current Save Connection flow can wait on the system prompt.
+- Add an explicit user instruction workflow alongside automatic suggestions, with the same preview and acceptance boundary.
+- Broaden direct native formatting and verify it in PowerPoint, then add native UI footage and finish the remaining live gates above.
 
 ## Benchmark
 

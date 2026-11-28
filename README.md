@@ -45,7 +45,7 @@
 
 ### 下载预览版
 
-[下载 v0.1.0-preview.38 · Apple Silicon](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.38/PPT-Cursor-macOS-arm64.zip) · [发布说明与校验文件](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.38)
+[下载 v0.1.0-preview.39 · Apple Silicon](https://github.com/genalyu/ppt-cursor/releases/download/v0.1.0-preview.39/PPT-Cursor-macOS-arm64.zip) · [发布说明与校验文件](https://github.com/genalyu/ppt-cursor/releases/tag/v0.1.0-preview.39)
 
 解压后打开 `PPT Cursor.app`。仍需本机 PowerPoint、Python 3 + Pillow 和 LibreOffice；模型连接在应用内配置。Intel Mac 当前请从源码构建。此包已通过 CI 测试和打包校验，但尚未 Apple 公证。
 
